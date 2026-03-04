@@ -8,3 +8,12 @@
   padding: 8px;
   vertical-align: top;
 }
+
+.document td.number {
+  text-align: right;
+}
+
+.document td.text,
+.document td.formula {
+  text-align: left;
+}

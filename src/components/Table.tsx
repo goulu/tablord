@@ -25,7 +25,7 @@ export const Table: React.FC<TableProps> = ({ table, activeCellId, onCellClick, 
                 return (
                   <td
                     key={cell.id}
-                    className={isActive ? "selected" : ""}
+                    className={`${isActive ? "selected " : ""}${cell.type || "text"}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       onCellClick(cell.id);
