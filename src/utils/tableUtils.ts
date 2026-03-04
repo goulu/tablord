@@ -99,14 +99,26 @@ export const handleEnter = (table: Table, activeCellId: string): { newTable: Tab
       if (cIdx !== -1) {
         found = true;
         // create new row below the LAST row to maintain 1, 2, 3 ordering
-        const nextRowId = getNextRowId(t.rows[t.rows.length - 1].id);
-        const newRowCells = t.columns.map(colName => {
+        const lastRow = t.rows[t.rows.length - 1];
+        const nextRowId = getNextRowId(lastRow.id);
+        const newRowCells = t.columns.map((colName, cIdx2) => {
            const prefix = t.id === 'document' ? '' : `${t.id}_`;
            const newCellId = `${prefix}${colName}.${nextRowId}`;
            if (colName === t.columns[cIdx]) {
               newActiveCellId = newCellId;
            }
-           return { id: newCellId, text: "" };
+           
+           const cellAbove = lastRow.cells[cIdx2];
+           let newText = "";
+           if (cellAbove?.className?.includes('number') && cellAbove.text.trim() !== '' && !isNaN(Number(cellAbove.text))) {
+             newText = (Number(cellAbove.text) + 1).toString();
+           }
+           
+           return { 
+             id: newCellId, 
+             text: newText,
+             className: cellAbove?.className 
+           };
         });
         const newRow: Row = { id: nextRowId, cells: newRowCells };
         
