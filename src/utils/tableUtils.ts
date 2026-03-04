@@ -140,3 +140,56 @@ export const handleEnter = (table: Table, activeCellId: string): { newTable: Tab
   const newTable = traverse(table);
   return { newTable, newActiveCellId };
 };
+
+export const handleCtrlTab = (table: Table, activeCellId: string): { newTable: Table, newActiveCellId: string } => {
+  let newActiveCellId = activeCellId;
+  let found = false;
+
+  const traverse = (t: Table): Table => {
+    let childModified = false;
+    const newRows = t.rows.map(row => {
+      let rowModified = false;
+      const newCells = row.cells.map(cell => {
+        if (cell.id === activeCellId) {
+          found = true;
+          rowModified = true;
+          const subTableId = cell.id;
+          const newCellId = `${subTableId}_A.1`;
+          newActiveCellId = newCellId;
+          
+          const newSubTable: Table = {
+            id: subTableId,
+            columns: ["A"],
+            rows: [
+              {
+                id: "1",
+                cells: [
+                  {
+                    id: newCellId,
+                    text: "",
+                  }
+                ]
+              }
+            ]
+          };
+          return { ...cell, table: newSubTable };
+        }
+        if (cell.table && !found) {
+          const newSubTable = traverse(cell.table);
+          if (found && !rowModified) {
+             rowModified = true;
+             return { ...cell, table: newSubTable };
+          }
+        }
+        return cell;
+      });
+      if (rowModified) childModified = true;
+      return rowModified ? { ...row, cells: newCells } : row;
+    });
+
+    return childModified ? { ...t, rows: newRows } : t;
+  };
+
+  const newTable = traverse(table);
+  return { newTable, newActiveCellId };
+};
