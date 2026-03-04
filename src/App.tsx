@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { initialDocument } from './types/document';
 import type { Table as TableType } from './types/document';
-import { handleTab, handleEnter, handleCtrlTab, handleArrow } from './utils/tableUtils';
+import { handleTab, handleEnter, handleCtrlTab, handleArrow, getCellType, setCellTypeClass } from './utils/tableUtils';
 import { TopBar } from './components/TopBar';
 import { Table } from './components/Table';
 import { HelpPopup } from './components/HelpPopup';
@@ -16,19 +16,19 @@ const updateCellText = (table: TableType, cellId: string, newText: string): Tabl
       cells: row.cells.map((cell) => {
         if (cell.id === cellId) {
           // Auto-detect number
-          let newType = cell.type;
+          let newTypeStr = getCellType(cell.className);
           if (newText.trim() !== '') {
             if (!isNaN(Number(newText))) {
-              newType = 'number';
-            } else if (cell.type === 'number') {
+              newTypeStr = 'number';
+            } else if (newTypeStr === 'number') {
                // Revert to text if it was a number but is no longer valid
-               newType = 'text';
+               newTypeStr = 'text';
             }
           } else {
-             newType = 'text'; // Default to text when empty
+             newTypeStr = 'text'; // Default to text when empty
           }
           
-          return { ...cell, text: newText, type: newType };
+          return { ...cell, text: newText, className: setCellTypeClass(cell.className, newTypeStr) };
         }
         if (cell.table) {
           return { ...cell, table: updateCellText(cell.table, cellId, newText) };
@@ -46,7 +46,7 @@ const updateCellTypeInTree = (table: TableType, cellId: string, newType: 'text' 
       ...row,
       cells: row.cells.map((cell) => {
         if (cell.id === cellId) {
-          return { ...cell, type: newType };
+          return { ...cell, className: setCellTypeClass(cell.className, newType) };
         }
         if (cell.table) {
           return { ...cell, table: updateCellTypeInTree(cell.table, cellId, newType) };
@@ -172,7 +172,7 @@ function App() {
   };
 
   const activeCellProps = activeCellId ? findActiveCell(documentTable, activeCellId) : null;
-  const activeCellType = activeCellProps?.type || 'text';
+  const activeCellType = getCellType(activeCellProps?.className);
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }} onClick={() => setActiveCellId(null)}>

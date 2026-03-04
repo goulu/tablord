@@ -1,7 +1,7 @@
 export interface Cell {
   id: string; // e.g., "A.1"
   text: string;
-  type?: 'text' | 'number' | 'formula';
+  className?: string; // used to store classes like 'number', 'text', 'formula' without overwriting each other
   table?: Table; // A cell can optionally contain another table
 }
 

@@ -232,3 +232,31 @@ export const handleArrow = (table: Table, activeCellId: string, direction: 'Arro
   traverse(table);
   return newActiveCellId;
 };
+
+export const getCellType = (className?: string): 'text' | 'number' | 'formula' => {
+  if (!className) return 'text';
+  if (className.includes('formula')) return 'formula';
+  if (className.includes('number')) return 'number';
+  return 'text';
+};
+
+export const setCellTypeClass = (className: string = '', newType: 'text' | 'number' | 'formula'): string => {
+  const classes = className.split(' ').filter(c => c && c !== 'text' && c !== 'number' && c !== 'formula');
+  if (newType !== 'text') {
+    classes.push(newType);
+  } else {
+    // We can explicitly add 'text' for styling guarantees
+    classes.push('text');
+  }
+  return classes.join(' ');
+};
+
+export const toggleCellClass = (className: string = '', toggleClass: string): string => {
+  const classes = className.split(' ').filter(c => c);
+  if (classes.includes(toggleClass)) {
+    return classes.filter(c => c !== toggleClass).join(' ');
+  } else {
+    classes.push(toggleClass);
+    return classes.join(' ');
+  }
+};
