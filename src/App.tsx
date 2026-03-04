@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { initialDocument } from './types/document';
 import type { Table as TableType } from './types/document';
-import { handleTab, handleEnter, handleCtrlTab } from './utils/tableUtils';
+import { handleTab, handleEnter, handleCtrlTab, handleArrow } from './utils/tableUtils';
 import { TopBar } from './components/TopBar';
 import { Table } from './components/Table';
 import { HelpPopup } from './components/HelpPopup';
@@ -92,6 +92,13 @@ function App() {
         e.preventDefault();
         const { newTable, newActiveCellId } = handleEnter(documentTable, activeCellId);
         setDocumentTable(newTable);
+        setActiveCellId(newActiveCellId);
+        return;
+      }
+
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        e.preventDefault();
+        const newActiveCellId = handleArrow(documentTable, activeCellId, e.key as any);
         setActiveCellId(newActiveCellId);
         return;
       }

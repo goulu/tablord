@@ -30,6 +30,7 @@ export const HelpPopup: React.FC<HelpPopupProps> = ({ onClose }) => {
         <ul style={{ lineHeight: '1.6', paddingLeft: '20px' }}>
           <li><strong>Text Input</strong>: Type to fill the active cell.</li>
           <li><strong>Backspace</strong>: Delete the last character in the active cell.</li>
+          <li><strong>Arrow Keys</strong>: Navigate to the adjacent cell in the same table.</li>
           <li><strong>Tab</strong>: Move to the next cell on the right. If at the end of the row, a new column is created.</li>
           <li><strong>Enter</strong>: Create a new row below the current active cell.</li>
           <li><strong>Ctrl + Tab</strong>: Create a nested sub-table inside the current active cell.</li>

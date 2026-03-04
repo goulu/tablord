@@ -1,4 +1,4 @@
-import type { Table, Row, Cell } from '../types/document';
+import type { Table, Row } from '../types/document';
 
 const convertColToNumber = (col: string): number => {
   let num = 0;
@@ -192,4 +192,43 @@ export const handleCtrlTab = (table: Table, activeCellId: string): { newTable: T
 
   const newTable = traverse(table);
   return { newTable, newActiveCellId };
+};
+
+export const handleArrow = (table: Table, activeCellId: string, direction: 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight'): string => {
+  let newActiveCellId = activeCellId;
+  let found = false;
+
+  const traverse = (t: Table) => {
+    for (let rIdx = 0; rIdx < t.rows.length; rIdx++) {
+      const row = t.rows[rIdx];
+      const cIdx = row.cells.findIndex(c => c.id === activeCellId);
+      if (cIdx !== -1) {
+        found = true;
+        
+        if (direction === 'ArrowUp' && rIdx > 0) {
+          newActiveCellId = t.rows[rIdx - 1].cells[cIdx].id;
+        } else if (direction === 'ArrowDown' && rIdx < t.rows.length - 1) {
+          newActiveCellId = t.rows[rIdx + 1].cells[cIdx].id;
+        } else if (direction === 'ArrowLeft' && cIdx > 0) {
+          newActiveCellId = row.cells[cIdx - 1].id;
+        } else if (direction === 'ArrowRight' && cIdx < row.cells.length - 1) {
+          newActiveCellId = row.cells[cIdx + 1].id;
+        }
+        return;
+      }
+    }
+
+    if (!found) {
+      for (const row of t.rows) {
+        for (const cell of row.cells) {
+          if (cell.table && !found) {
+            traverse(cell.table);
+          }
+        }
+      }
+    }
+  };
+
+  traverse(table);
+  return newActiveCellId;
 };
