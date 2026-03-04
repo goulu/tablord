@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { initialDocument } from './types/document';
 import type { Table as TableType } from './types/document';
 import { handleTab, handleEnter, handleCtrlTab, handleArrow, getCellType, setCellTypeClass } from './utils/tableUtils';
@@ -75,12 +75,26 @@ function App() {
   const [activeCellId, setActiveCellId] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
 
+  const tableRef = useRef(documentTable);
+  const activeCellRef = useRef(activeCellId);
+
+  useEffect(() => {
+    tableRef.current = documentTable;
+  }, [documentTable]);
+
+  useEffect(() => {
+    activeCellRef.current = activeCellId;
+  }, [activeCellId]);
+
   // Handle global keystrokes
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
+      const currentTable = tableRef.current;
+      const currentActiveCellId = activeCellRef.current;
+
       // If we don't have an active cell, or it's a modifier key alone without Tab, do nothing
       // We allow ctrlKey for Ctrl+Tab
-      if (!activeCellId || e.metaKey || e.altKey) {
+      if (!currentActiveCellId || e.metaKey || e.altKey) {
         return;
       }
       if (e.ctrlKey && e.key !== 'Tab') {
@@ -90,11 +104,11 @@ function App() {
       if (e.key === 'Tab') {
         e.preventDefault();
         if (e.ctrlKey) {
-          const { newTable, newActiveCellId } = handleCtrlTab(documentTable, activeCellId);
+          const { newTable, newActiveCellId } = handleCtrlTab(currentTable, currentActiveCellId);
           setDocumentTable(newTable);
           setActiveCellId(newActiveCellId);
         } else {
-          const { newTable, newActiveCellId } = handleTab(documentTable, activeCellId);
+          const { newTable, newActiveCellId } = handleTab(currentTable, currentActiveCellId);
           setDocumentTable(newTable);
           setActiveCellId(newActiveCellId);
         }
@@ -103,7 +117,7 @@ function App() {
 
       if (e.key === 'Enter') {
         e.preventDefault();
-        const { newTable, newActiveCellId } = handleEnter(documentTable, activeCellId);
+        const { newTable, newActiveCellId } = handleEnter(currentTable, currentActiveCellId);
         setDocumentTable(newTable);
         setActiveCellId(newActiveCellId);
         return;
@@ -111,47 +125,45 @@ function App() {
 
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         e.preventDefault();
-        const newActiveCellId = handleArrow(documentTable, activeCellId, e.key as any);
+        const newActiveCellId = handleArrow(currentTable, currentActiveCellId, e.key as any);
         setActiveCellId(newActiveCellId);
         return;
       }
 
-      setDocumentTable((prevTable) => {
-        // Find the current text to compute new text
-        let currentText = '';
-        
-        // Very basic search function (recursive) to find current cell text
-        const findText = (t: TableType): boolean => {
-          for (const row of t.rows) {
-            for (const cell of row.cells) {
-              if (cell.id === activeCellId) {
-                currentText = cell.text;
-                return true;
-              }
-              if (cell.table) {
-                if(findText(cell.table)) return true;
-              }
+      // Find the current text to compute new text
+      let currentText = '';
+      
+      const findText = (t: TableType): boolean => {
+        for (const row of t.rows) {
+          for (const cell of row.cells) {
+            if (cell.id === currentActiveCellId) {
+              currentText = cell.text;
+              return true;
+            }
+            if (cell.table) {
+              if (findText(cell.table)) return true;
             }
           }
-          return false;
-        };
-        findText(prevTable);
-
-        let newText = currentText;
-
-        if (e.key === 'Backspace') {
-          newText = currentText.slice(0, -1);
-        } else if (e.key.length === 1) { // Normal character
-          newText = currentText + e.key;
-        } else {
-           // keys like Enter, Arrow, etc., ignored in this simple version
-           return prevTable;
         }
+        return false;
+      };
+      findText(currentTable);
 
-        return updateCellText(prevTable, activeCellId, newText);
-      });
+      let newText = currentText;
+
+      if (e.key === 'Backspace') {
+        newText = currentText.slice(0, -1);
+      } else if (e.key.length === 1) { // Normal character
+        newText = currentText + e.key;
+      } else {
+         // keys like Enter, Arrow, etc., ignored in this simple version
+         return;
+      }
+
+      const updatedTable = updateCellText(currentTable, currentActiveCellId, newText);
+      setDocumentTable(updatedTable);
     },
-    [activeCellId, documentTable]
+    [] // No dependencies needed due to refs
   );
 
   useEffect(() => {
