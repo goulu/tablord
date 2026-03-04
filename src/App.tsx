@@ -15,7 +15,20 @@ const updateCellText = (table: TableType, cellId: string, newText: string): Tabl
       ...row,
       cells: row.cells.map((cell) => {
         if (cell.id === cellId) {
-          return { ...cell, text: newText };
+          // Auto-detect number
+          let newType = cell.type;
+          if (newText.trim() !== '') {
+            if (!isNaN(Number(newText))) {
+              newType = 'number';
+            } else if (cell.type === 'number') {
+               // Revert to text if it was a number but is no longer valid
+               newType = 'text';
+            }
+          } else {
+             newType = 'text'; // Default to text when empty
+          }
+          
+          return { ...cell, text: newText, type: newType };
         }
         if (cell.table) {
           return { ...cell, table: updateCellText(cell.table, cellId, newText) };
