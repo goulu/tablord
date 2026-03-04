@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { initialDocument } from './types/document';
 import type { Table as TableType } from './types/document';
 import { handleTab, handleEnter, handleCtrlTab, handleArrow, getCellType, setCellTypeClass } from './utils/tableUtils';
+import { parseHtmlToTable } from './utils/htmlUtils';
 import { TopBar } from './components/TopBar';
 import { Table } from './components/Table';
 import { HelpPopup } from './components/HelpPopup';
@@ -77,9 +78,50 @@ function App() {
 
   const tableRef = useRef(documentTable);
   const activeCellRef = useRef(activeCellId);
+  const documentContainerRef = useRef<HTMLDivElement>(null);
 
+  // Load document.html on startup
+  useEffect(() => {
+    fetch('/api/load')
+      .then(res => {
+        if (res.ok) return res.text();
+        throw new Error('No document.html found');
+      })
+      .then(html => {
+        const loadedTable = parseHtmlToTable(html);
+        if (loadedTable) {
+          setDocumentTable(loadedTable);
+        }
+      })
+      .catch(err => console.log('Starting with initial document:', err.message));
+  }, []);
+
+  // Save document HTML whenever documentTable changes
   useEffect(() => {
     tableRef.current = documentTable;
+
+    // We use setTimeout to ensure React has flushed the DOM updates before we grab the HTML
+    const timer = setTimeout(() => {
+      if (documentContainerRef.current) {
+        // Clone to strip "selected" classes before saving
+        const clone = documentContainerRef.current.cloneNode(true) as HTMLDivElement;
+        const selectedEls = clone.querySelectorAll('.selected');
+        selectedEls.forEach(el => el.classList.remove('selected'));
+        // remove empty class attributes
+        const allEls = clone.querySelectorAll('*');
+        allEls.forEach(el => {
+          if (el.getAttribute('class') === '') el.removeAttribute('class');
+        });
+
+        const htmlToSave = clone.innerHTML;
+        fetch('/api/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/html' },
+          body: htmlToSave
+        }).catch(err => console.error('Failed to save document.html:', err));
+      }
+    }, 100); // 100ms debounce
+    return () => clearTimeout(timer);
   }, [documentTable]);
 
   useEffect(() => {
@@ -195,7 +237,7 @@ function App() {
         onHelpClick={() => setShowHelp(true)} 
       />
       
-      <div style={{ flex: 1, padding: '20px', overflow: 'auto' }}>
+      <div style={{ flex: 1, padding: '20px', overflow: 'auto' }} ref={documentContainerRef}>
         <Table 
           table={documentTable} 
           activeCellId={activeCellId} 
