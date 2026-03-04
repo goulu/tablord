@@ -1,6 +1,7 @@
 export interface Cell {
   id: string; // e.g., "A.1"
   text: string;
+  type?: 'text' | 'number' | 'formula';
   table?: Table; // A cell can optionally contain another table
 }
 

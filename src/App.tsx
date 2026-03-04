@@ -26,6 +26,37 @@ const updateCellText = (table: TableType, cellId: string, newText: string): Tabl
   };
 };
 
+const updateCellTypeInTree = (table: TableType, cellId: string, newType: 'text' | 'number' | 'formula'): TableType => {
+  return {
+    ...table,
+    rows: table.rows.map((row) => ({
+      ...row,
+      cells: row.cells.map((cell) => {
+        if (cell.id === cellId) {
+          return { ...cell, type: newType };
+        }
+        if (cell.table) {
+          return { ...cell, table: updateCellTypeInTree(cell.table, cellId, newType) };
+        }
+        return cell;
+      }),
+    })),
+  };
+};
+
+const findActiveCell = (table: TableType, cellId: string): TableType['rows'][0]['cells'][0] | null => {
+  for (const row of table.rows) {
+    for (const cell of row.cells) {
+      if (cell.id === cellId) return cell;
+      if (cell.table) {
+        const found = findActiveCell(cell.table, cellId);
+        if (found) return found;
+      }
+    }
+  }
+  return null;
+};
+
 function App() {
   const [documentTable, setDocumentTable] = useState<TableType>(initialDocument);
   const [activeCellId, setActiveCellId] = useState<string | null>(null);
@@ -114,9 +145,23 @@ function App() {
     setActiveCellId(cellId);
   };
 
+  const handleCellTypeChange = (newType: 'text' | 'number' | 'formula') => {
+    if (activeCellId) {
+      setDocumentTable(prev => updateCellTypeInTree(prev, activeCellId, newType));
+    }
+  };
+
+  const activeCellProps = activeCellId ? findActiveCell(documentTable, activeCellId) : null;
+  const activeCellType = activeCellProps?.type || 'text';
+
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }} onClick={() => setActiveCellId(null)}>
-      <TopBar activeCellId={activeCellId} onHelpClick={() => setShowHelp(true)} />
+      <TopBar 
+        activeCellId={activeCellId} 
+        activeCellType={activeCellType}
+        onCellTypeChange={handleCellTypeChange}
+        onHelpClick={() => setShowHelp(true)} 
+      />
       
       <div style={{ flex: 1, padding: '20px', overflow: 'auto' }}>
         <Table 

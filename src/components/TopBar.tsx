@@ -2,12 +2,19 @@ import React from 'react';
 
 interface TopBarProps {
   activeCellId: string | null;
+  activeCellType: 'text' | 'number' | 'formula' | undefined;
   onHelpClick: () => void;
+  onCellTypeChange: (type: 'text' | 'number' | 'formula') => void;
 }
 
-export const TopBar: React.FC<TopBarProps> = ({ activeCellId, onHelpClick }) => {
+export const TopBar: React.FC<TopBarProps> = ({ 
+  activeCellId, 
+  activeCellType,
+  onHelpClick, 
+  onCellTypeChange 
+}) => {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #ccc', padding: '10px' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #ccc', padding: '10px' }}>
       <div>
         <button style={{ marginRight: '5px' }} title="Bold (placeholder)">B</button>
         <button style={{ marginRight: '5px' }} title="Italic (placeholder)">I</button>
@@ -20,8 +27,21 @@ export const TopBar: React.FC<TopBarProps> = ({ activeCellId, onHelpClick }) => 
           Help
         </button>
       </div>
-      <div>
-        {activeCellId ? `Active Cell: ${activeCellId}` : 'Ready'}
+      <div style={{ display: 'flex', alignItems: 'center' }}>
+        <span style={{ marginRight: '10px' }}>
+          {activeCellId ? `Active Cell: ${activeCellId}` : 'Ready'}
+        </span>
+        {activeCellId && (
+          <select 
+            value={activeCellType || 'text'} 
+            onChange={(e) => onCellTypeChange(e.target.value as any)}
+            style={{ padding: '4px' }}
+          >
+            <option value="text">text</option>
+            <option value="number">number</option>
+            <option value="formula">formula</option>
+          </select>
+        )}
       </div>
     </div>
   );
