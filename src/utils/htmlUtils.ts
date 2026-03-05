@@ -19,7 +19,7 @@ export const parseHtmlToTable = (htmlString: string): Table | null => {
     }
 
     const isRoot = tableId === 'document';
-    const prefix = isRoot ? '' : tableId + '_';
+    const prefix = isRoot ? '' : tableId + '.';
 
     trElements.forEach((tr, rIdx) => {
       const rowId = (rIdx + 1).toString();

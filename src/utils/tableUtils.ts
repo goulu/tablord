@@ -45,7 +45,7 @@ export const handleTab = (table: Table, activeCellId: string): { newTable: Table
           const nextColName = getNextColumnName(t.columns[t.columns.length - 1]);
           const newColumns = [...t.columns, nextColName];
           const newRows = t.rows.map((r, i) => {
-            const prefix = t.id === 'document' ? '' : `${t.id}_`;
+            const prefix = t.id === 'document' ? '' : `${t.id}.`;
             const newCellId = `${prefix}${nextColName}.${r.id}`;
             if (i === rIdx) {
                newActiveCellId = newCellId;
@@ -102,7 +102,7 @@ export const handleEnter = (table: Table, activeCellId: string): { newTable: Tab
         const lastRow = t.rows[t.rows.length - 1];
         const nextRowId = getNextRowId(lastRow.id);
         const newRowCells = t.columns.map((colName, cIdx2) => {
-           const prefix = t.id === 'document' ? '' : `${t.id}_`;
+           const prefix = t.id === 'document' ? '' : `${t.id}.`;
            const newCellId = `${prefix}${colName}.${nextRowId}`;
            if (colName === t.columns[cIdx]) {
               newActiveCellId = newCellId;
@@ -166,7 +166,7 @@ export const handleCtrlTab = (table: Table, activeCellId: string): { newTable: T
           found = true;
           rowModified = true;
           const subTableId = cell.id;
-          const newCellId = `${subTableId}_A.1`;
+          const newCellId = `${subTableId}.A.1`;
           newActiveCellId = newCellId;
           
           const newSubTable: Table = {
