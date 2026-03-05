@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import type { Table as TableType } from '../types/document';
+import type { Table as TableType, Cell } from '../types/document';
 import '../App.css';
 
 interface TableProps {
@@ -7,15 +7,21 @@ interface TableProps {
   activeCellId: string | null;
   onCellClick: (cellId: string) => void;
   onCellInput: (cellId: string, text: string) => void;
+  onCellBlur: (cellId: string) => void;
   depth?: number;
 }
 
-export const Table: React.FC<TableProps> = ({ table, activeCellId, onCellClick, onCellInput, depth = 0 }) => {
+export const Table: React.FC<TableProps> = ({ table, activeCellId, onCellClick, onCellInput, onCellBlur, depth = 0 }) => {
   const activeTdRef = useRef<HTMLTableCellElement | null>(null);
   
   const isInnermostSelectedTable = table.rows.some(row => 
     row.cells.some(cell => cell.id === activeCellId)
   );
+
+  // Find the active cell to know if it's a formula
+  const activeCell: Cell | undefined = table.rows
+    .flatMap(r => r.cells)
+    .find(c => c.id === activeCellId);
 
   // Focus the active td and place cursor at end when a new cell becomes active
   useEffect(() => {
@@ -24,7 +30,6 @@ export const Table: React.FC<TableProps> = ({ table, activeCellId, onCellClick, 
       if (typeof window.getSelection !== 'undefined' && typeof document.createRange !== 'undefined') {
         const range = document.createRange();
         range.selectNodeContents(activeTdRef.current);
-        // Only collapse to end if no inner table
         range.collapse(false);
         const sel = window.getSelection();
         sel?.removeAllRanges();
@@ -32,6 +37,17 @@ export const Table: React.FC<TableProps> = ({ table, activeCellId, onCellClick, 
       }
     }
   }, [activeCellId]);
+
+  // When the active cell changes away and the td still contains text, sync
+  // the display text (formula when active, value when inactive) via DOM ref
+  useEffect(() => {
+    if (activeTdRef.current && activeCell) {
+      const displayText = activeCell.text; // formula or text
+      if (activeTdRef.current.textContent !== displayText) {
+        activeTdRef.current.textContent = displayText;
+      }
+    }
+  }, [activeCell]);
 
   return (
     <div className="document">
@@ -41,6 +57,8 @@ export const Table: React.FC<TableProps> = ({ table, activeCellId, onCellClick, 
             <tr key={row.id}>
               {row.cells.map((cell) => {
                 const isActive = cell.id === activeCellId;
+                // Show formula when active, otherwise show evaluated value (if any)
+                const displayText = isActive ? cell.text : (cell.value ?? cell.text);
                 return (
                   <td
                     key={cell.id}
@@ -54,8 +72,10 @@ export const Table: React.FC<TableProps> = ({ table, activeCellId, onCellClick, 
                         onCellInput(cell.id, e.currentTarget.textContent || '');
                       }
                     }}
+                    onBlur={() => {
+                      onCellBlur(cell.id);
+                    }}
                     onKeyDown={(e) => {
-                      // Let ArrowLeft/Right stay within the cell if cursor is not at boundary
                       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
                         const sel = window.getSelection();
                         if (sel && sel.rangeCount > 0) {
@@ -75,14 +95,14 @@ export const Table: React.FC<TableProps> = ({ table, activeCellId, onCellClick, 
                       onCellClick(cell.id);
                     }}
                   >
-                    {cell.text || ''}
-                    {/* If the cell contains a sub-table, render it recursively */}
+                    {displayText}
                     {cell.table && (
                       <Table
                         table={cell.table}
                         activeCellId={activeCellId}
                         onCellClick={onCellClick}
                         onCellInput={onCellInput}
+                        onCellBlur={onCellBlur}
                         depth={depth + 1}
                       />
                     )}

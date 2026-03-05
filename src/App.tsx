@@ -8,6 +8,16 @@ import { Table } from './components/Table';
 import { HelpPopup } from './components/HelpPopup';
 import './App.css';
 
+const evaluateFormula = (formula: string): string => {
+  try {
+    // eslint-disable-next-line no-new-func
+    const result = Function('"use strict"; return (' + formula.slice(1) + ')')();
+    return String(result);
+  } catch {
+    return '#ERROR';
+  }
+};
+
 // Helper function to deeply update a cell's text by ID
 const updateCellText = (table: TableType, cellId: string, newText: string): TableType => {
   return {
@@ -16,23 +26,49 @@ const updateCellText = (table: TableType, cellId: string, newText: string): Tabl
       ...row,
       cells: row.cells.map((cell) => {
         if (cell.id === cellId) {
+          // Detect formula
+          if (newText.startsWith('=')) {
+            return { ...cell, text: newText, className: setCellTypeClass(cell.className, 'formula') };
+          }
           // Auto-detect number
-          let newTypeStr = getCellType(cell.className);
+          let newTypeStr = getCellType(cell.className) === 'formula' ? 'text' : getCellType(cell.className);
           if (newText.trim() !== '') {
             if (!isNaN(Number(newText))) {
               newTypeStr = 'number';
             } else if (newTypeStr === 'number') {
-               // Revert to text if it was a number but is no longer valid
                newTypeStr = 'text';
             }
           } else {
-             newTypeStr = 'text'; // Default to text when empty
+             newTypeStr = 'text';
           }
-          
-          return { ...cell, text: newText, className: setCellTypeClass(cell.className, newTypeStr) };
+          return { ...cell, text: newText, value: undefined, className: setCellTypeClass(cell.className, newTypeStr) };
         }
         if (cell.table) {
           return { ...cell, table: updateCellText(cell.table, cellId, newText) };
+        }
+        return cell;
+      }),
+    })),
+  };
+};
+
+// Called when leaving a cell — evaluates formula if present
+const evaluateCellFormula = (table: TableType, cellId: string): TableType => {
+  return {
+    ...table,
+    rows: table.rows.map((row) => ({
+      ...row,
+      cells: row.cells.map((cell) => {
+        if (cell.id === cellId && cell.text.startsWith('=')) {
+          const evaluated = evaluateFormula(cell.text);
+          const isNum = !isNaN(Number(evaluated)) && evaluated !== '' && evaluated !== '#ERROR';
+          const newClassName = isNum 
+            ? setCellTypeClass(cell.className, 'number') 
+            : setCellTypeClass(cell.className, 'formula');
+          return { ...cell, value: evaluated, className: newClassName };
+        }
+        if (cell.table) {
+          return { ...cell, table: evaluateCellFormula(cell.table, cellId) };
         }
         return cell;
       }),
@@ -232,6 +268,7 @@ function App() {
           activeCellId={activeCellId} 
           onCellClick={handleCellClick}
           onCellInput={(cellId, newText) => setDocumentTable(prev => updateCellText(prev, cellId, newText))}
+          onCellBlur={(cellId) => setDocumentTable(prev => evaluateCellFormula(prev, cellId))}
         />
       </div>
 
