@@ -25,6 +25,7 @@ interface EditableCellProps {
 
 const EditableCell = memo(({ cell, isActive, onCellClick, onCellInput, children }: EditableCellProps) => {
   const tdRef = useRef<HTMLTableCellElement>(null);
+  const originalTextRef = useRef<string>(''); // captured on activation
 
   // When this cell becomes the active one: set DOM text and move cursor to end.
   // We use useLayoutEffect so it fires before the browser paints, avoiding flash.
@@ -32,6 +33,8 @@ const EditableCell = memo(({ cell, isActive, onCellClick, onCellInput, children 
     const td = tdRef.current;
     if (!td) return;
     if (isActive && !cell.table) {
+      // Remember where we started so Escape can restore it
+      originalTextRef.current = cell.value ?? cell.text;
       // Set the formula (or plain text) so the user can edit it
       const formulaOrText = cell.text;
       if (td.textContent !== formulaOrText) {
@@ -88,6 +91,16 @@ const EditableCell = memo(({ cell, isActive, onCellClick, onCellInput, children 
         }
       }}
       onKeyDown={(e) => {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          // Restore original text and cancel edit
+          const td = tdRef.current;
+          if (td) td.textContent = originalTextRef.current;
+          onCellInput(cell.id, cell.text); // keep state unchanged (original text was already in state)
+          td?.blur();
+          return;
+        }
         if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
           const sel = window.getSelection();
           if (sel && sel.rangeCount > 0) {
