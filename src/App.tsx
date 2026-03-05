@@ -1,22 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { initialDocument } from './types/document';
 import type { Table as TableType } from './types/document';
-import { handleTab, handleEnter, handleCtrlTab, handleArrow, getCellType, setCellTypeClass } from './utils/tableUtils';
+import { handleTab, handleEnter, handleCtrlTab, handleArrow, getCellType, setCellTypeClass, evaluateFormula, recalculateTable } from './utils/tableUtils';
 import { parseHtmlToTable } from './utils/htmlUtils';
 import { TopBar } from './components/TopBar';
 import { Table } from './components/Table';
 import { HelpPopup } from './components/HelpPopup';
 import './App.css';
-
-const evaluateFormula = (formula: string): string => {
-  try {
-    // eslint-disable-next-line no-new-func
-    const result = Function('"use strict"; return (' + formula.slice(1) + ')')();
-    return String(result);
-  } catch {
-    return '#ERROR';
-  }
-};
 
 // Helper function to deeply update a cell's text by ID
 const updateCellText = (table: TableType, cellId: string, newText: string): TableType => {
@@ -28,7 +18,12 @@ const updateCellText = (table: TableType, cellId: string, newText: string): Tabl
         if (cell.id === cellId) {
           // Detect formula
           if (newText.startsWith('=')) {
-            return { ...cell, text: newText, className: setCellTypeClass(cell.className, 'formula') };
+            const evaluated = evaluateFormula(newText);
+            const isNum = !isNaN(Number(evaluated)) && evaluated !== '' && evaluated !== '#ERROR';
+            const newClassName = isNum 
+              ? setCellTypeClass(cell.className, 'number') 
+              : setCellTypeClass(cell.className, 'formula');
+            return { ...cell, text: newText, value: evaluated, className: newClassName };
           }
           // Auto-detect number
           let newTypeStr = getCellType(cell.className) === 'formula' ? 'text' : getCellType(cell.className);
@@ -52,30 +47,6 @@ const updateCellText = (table: TableType, cellId: string, newText: string): Tabl
   };
 };
 
-// Called when leaving a cell — evaluates formula if present
-const evaluateCellFormula = (table: TableType, cellId: string): TableType => {
-  return {
-    ...table,
-    rows: table.rows.map((row) => ({
-      ...row,
-      cells: row.cells.map((cell) => {
-        if (cell.id === cellId && cell.text.startsWith('=')) {
-          const evaluated = evaluateFormula(cell.text);
-          const isNum = !isNaN(Number(evaluated)) && evaluated !== '' && evaluated !== '#ERROR';
-          const newClassName = isNum 
-            ? setCellTypeClass(cell.className, 'number') 
-            : setCellTypeClass(cell.className, 'formula');
-          return { ...cell, value: evaluated, className: newClassName };
-        }
-        if (cell.table) {
-          return { ...cell, table: evaluateCellFormula(cell.table, cellId) };
-        }
-        return cell;
-      }),
-    })),
-  };
-};
-
 const updateCellTypeInTree = (table: TableType, cellId: string, newType: 'text' | 'number' | 'formula'): TableType => {
   return {
     ...table,
@@ -83,7 +54,15 @@ const updateCellTypeInTree = (table: TableType, cellId: string, newType: 'text' 
       ...row,
       cells: row.cells.map((cell) => {
         if (cell.id === cellId) {
-          return { ...cell, className: setCellTypeClass(cell.className, newType) };
+          let newText = cell.text;
+          let newValue = cell.value;
+          if (newType === 'formula' && !newText.startsWith('=')) {
+             newText = '=' + newText;
+             newValue = evaluateFormula(newText);
+          } else if (newType !== 'formula' && newText.startsWith('=')) {
+             newValue = undefined;
+          }
+          return { ...cell, text: newText, value: newValue, className: setCellTypeClass(cell.className, newType) };
         }
         if (cell.table) {
           return { ...cell, table: updateCellTypeInTree(cell.table, cellId, newType) };
@@ -139,7 +118,7 @@ function App() {
       .then(html => {
         const loadedTable = parseHtmlToTable(html);
         if (loadedTable) {
-          setDocumentTable(loadedTable);
+          setDocumentTable(recalculateTable(loadedTable));
         }
       })
       .catch(err => console.log('Starting with initial document:', err.message));
@@ -268,7 +247,6 @@ function App() {
           activeCellId={activeCellId} 
           onCellClick={handleCellClick}
           onCellInput={(cellId, newText) => setDocumentTable(prev => updateCellText(prev, cellId, newText))}
-          onCellBlur={(cellId) => setDocumentTable(prev => evaluateCellFormula(prev, cellId))}
         />
       </div>
 

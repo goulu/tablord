@@ -272,3 +272,41 @@ export const toggleCellClass = (className: string = '', toggleClass: string): st
     return classes.join(' ');
   }
 };
+
+export const evaluateFormula = (formula: string): string => {
+  try {
+    // eslint-disable-next-line no-new-func
+    const result = Function('"use strict"; return (' + formula.slice(1) + ')')();
+    return String(result);
+  } catch {
+    return '#ERROR';
+  }
+};
+
+export const recalculateTable = (table: Table): Table => {
+  return {
+    ...table,
+    rows: table.rows.map(row => ({
+      ...row,
+      cells: row.cells.map(cell => {
+        let newValue = cell.value;
+        let newClassName = cell.className;
+        if (cell.text.startsWith('=')) {
+          newValue = evaluateFormula(cell.text);
+          const isNum = !isNaN(Number(newValue)) && newValue !== '' && newValue !== '#ERROR';
+          newClassName = isNum 
+            ? setCellTypeClass(cell.className || '', 'number') 
+            : setCellTypeClass(cell.className || '', 'formula');
+        } else {
+          newValue = undefined;
+        }
+        return { 
+          ...cell, 
+          value: newValue, 
+          className: newClassName,
+          table: cell.table ? recalculateTable(cell.table) : undefined 
+        };
+      })
+    }))
+  };
+};

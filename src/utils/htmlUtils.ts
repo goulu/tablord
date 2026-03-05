@@ -39,7 +39,9 @@ export const parseHtmlToTable = (htmlString: string): Table | null => {
         const clone = td.cloneNode(true) as HTMLTableCellElement;
         const innerDivs = clone.querySelectorAll('div.document');
         innerDivs.forEach(d => d.remove());
-        const text = clone.textContent?.trim() || '';
+        const rawTextContent = clone.textContent?.trim() || '';
+        const formulaAttr = td.getAttribute('data-formula');
+        const text = formulaAttr || rawTextContent;
 
         // Extract class names (excluding 'selected')
         const classNames = Array.from(td.classList).filter(c => c !== 'selected').join(' ');
