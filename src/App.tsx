@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { initialDocument } from './types/document';
 import type { Table as TableType } from './types/document';
 import { handleTab, handleEnter, handleCtrlTab, handleArrow, getCellType, setCellTypeClass } from './utils/tableUtils';
@@ -128,9 +128,9 @@ function App() {
     activeCellRef.current = activeCellId;
   }, [activeCellId]);
 
-  // Handle global keystrokes
+  // Handle keystrokes (Tab, Enter, Arrows) that bubble up
   const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
       const currentTable = tableRef.current;
       const currentActiveCellId = activeCellRef.current;
 
@@ -171,49 +171,9 @@ function App() {
         setActiveCellId(newActiveCellId);
         return;
       }
-
-      // Find the current text to compute new text
-      let currentText = '';
-      
-      const findText = (t: TableType): boolean => {
-        for (const row of t.rows) {
-          for (const cell of row.cells) {
-            if (cell.id === currentActiveCellId) {
-              currentText = cell.text;
-              return true;
-            }
-            if (cell.table) {
-              if (findText(cell.table)) return true;
-            }
-          }
-        }
-        return false;
-      };
-      findText(currentTable);
-
-      let newText = currentText;
-
-      if (e.key === 'Backspace') {
-        newText = currentText.slice(0, -1);
-      } else if (e.key.length === 1) { // Normal character
-        newText = currentText + e.key;
-      } else {
-         // keys like Enter, Arrow, etc., ignored in this simple version
-         return;
-      }
-
-      const updatedTable = updateCellText(currentTable, currentActiveCellId, newText);
-      setDocumentTable(updatedTable);
     },
     [] // No dependencies needed due to refs
   );
-
-  useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [handleKeyDown]);
 
   const handleCellClick = (cellId: string) => {
     setActiveCellId(cellId);
@@ -229,7 +189,12 @@ function App() {
   const activeCellType = getCellType(activeCellProps?.className);
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }} onClick={() => setActiveCellId(null)}>
+    <div 
+      style={{ height: '100vh', display: 'flex', flexDirection: 'column', outline: 'none' }} 
+      onClick={() => setActiveCellId(null)}
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
+    >
       <TopBar 
         activeCellId={activeCellId} 
         activeCellType={activeCellType}
@@ -242,6 +207,7 @@ function App() {
           table={documentTable} 
           activeCellId={activeCellId} 
           onCellClick={handleCellClick}
+          onCellInput={(cellId, newText) => setDocumentTable(prev => updateCellText(prev, cellId, newText))}
         />
       </div>
 
