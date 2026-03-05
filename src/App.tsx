@@ -107,11 +107,19 @@ function App() {
         const clone = documentContainerRef.current.cloneNode(true) as HTMLDivElement;
         const selectedEls = clone.querySelectorAll('.selected');
         selectedEls.forEach(el => el.classList.remove('selected'));
-        // remove empty class attributes
+        // Remove empty class attributes
         const allEls = clone.querySelectorAll('*');
         allEls.forEach(el => {
           if (el.getAttribute('class') === '') el.removeAttribute('class');
         });
+        // Strip the EditableText <span> wrappers — replace with their text content
+        const spans = clone.querySelectorAll('span');
+        spans.forEach(span => {
+          const text = document.createTextNode(span.textContent || '');
+          span.parentNode?.replaceChild(text, span);
+        });
+        // Also strip contenteditable attributes left on any elements
+        clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
 
         const htmlToSave = clone.innerHTML;
         fetch('/api/save', {

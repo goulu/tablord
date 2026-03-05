@@ -17,3 +17,9 @@
 .document td.formula {
   text-align: left;
 }
+
+.document td span {
+  outline: none;
+  display: inline-block;
+  min-width: 10px;
+}

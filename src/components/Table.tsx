@@ -40,7 +40,6 @@ const EditableText: React.FC<{ text: string; isActive: boolean; onTextChange: (v
       ref={spanRef}
       contentEditable={isActive}
       suppressContentEditableWarning
-      style={{ outline: 'none', display: 'inline-block', minWidth: '10px' }}
       onInput={(e) => onTextChange(e.currentTarget.textContent || '')}
       onKeyDown={(e) => {
          if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
