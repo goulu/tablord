@@ -187,6 +187,10 @@ function App() {
 
   const activeCellProps = activeCellId ? findActiveCell(documentTable, activeCellId) : null;
   const activeCellType = getCellType(activeCellProps?.className);
+  
+  const activeTableId = activeCellId 
+    ? (activeCellId.includes('_') ? activeCellId.substring(0, activeCellId.lastIndexOf('_')) : 'document') 
+    : null;
 
   return (
     <div 
@@ -197,6 +201,7 @@ function App() {
     >
       <TopBar 
         activeCellId={activeCellId} 
+        activeTableId={activeTableId}
         activeCellType={activeCellType}
         onCellTypeChange={handleCellTypeChange}
         onHelpClick={() => setShowHelp(true)} 

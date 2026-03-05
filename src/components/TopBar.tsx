@@ -2,6 +2,7 @@ import React from 'react';
 
 interface TopBarProps {
   activeCellId: string | null;
+  activeTableId: string | null;
   activeCellType: 'text' | 'number' | 'formula' | undefined;
   onHelpClick: () => void;
   onCellTypeChange: (type: 'text' | 'number' | 'formula') => void;
@@ -9,6 +10,7 @@ interface TopBarProps {
 
 export const TopBar: React.FC<TopBarProps> = ({ 
   activeCellId, 
+  activeTableId,
   activeCellType,
   onHelpClick, 
   onCellTypeChange 
@@ -29,7 +31,7 @@ export const TopBar: React.FC<TopBarProps> = ({
       </div>
       <div style={{ display: 'flex', alignItems: 'center' }}>
         <span style={{ marginRight: '10px' }}>
-          {activeCellId ? `Active Cell: ${activeCellId}` : 'Ready'}
+          {activeCellId ? `${activeTableId}: ${activeCellId}` : 'Ready'}
         </span>
         {activeCellId && (
           <select 
