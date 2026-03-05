@@ -17,3 +17,8 @@
 .document td.formula {
   text-align: left;
 }
+
+/* Formula result displayed like a number (right-aligned) when not active */
+.document td.formula:not(.selected) {
+  text-align: right;
+}

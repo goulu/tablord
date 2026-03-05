@@ -293,10 +293,9 @@ export const recalculateTable = (table: Table): Table => {
         let newClassName = cell.className;
         if (cell.text.startsWith('=')) {
           newValue = evaluateFormula(cell.text);
-          const isNum = !isNaN(Number(newValue)) && newValue !== '' && newValue !== '#ERROR';
-          newClassName = isNum 
-            ? setCellTypeClass(cell.className || '', 'number') 
-            : setCellTypeClass(cell.className || '', 'formula');
+          // Keep the class as 'formula' regardless of whether the result is a number.
+          // CSS handles the alignment: right when inactive, left when editing.
+          newClassName = setCellTypeClass(cell.className || '', 'formula');
         } else {
           newValue = undefined;
         }

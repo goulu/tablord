@@ -16,14 +16,10 @@ const updateCellText = (table: TableType, cellId: string, newText: string): Tabl
       ...row,
       cells: row.cells.map((cell) => {
         if (cell.id === cellId) {
-          // Detect formula
+          // Detect formula — always keep class as 'formula'
           if (newText.startsWith('=')) {
             const evaluated = evaluateFormula(newText);
-            const isNum = !isNaN(Number(evaluated)) && evaluated !== '' && evaluated !== '#ERROR';
-            const newClassName = isNum 
-              ? setCellTypeClass(cell.className, 'number') 
-              : setCellTypeClass(cell.className, 'formula');
-            return { ...cell, text: newText, value: evaluated, className: newClassName };
+            return { ...cell, text: newText, value: evaluated, className: setCellTypeClass(cell.className, 'formula') };
           }
           // Auto-detect number
           let newTypeStr = getCellType(cell.className) === 'formula' ? 'text' : getCellType(cell.className);
