@@ -94,11 +94,21 @@ const EditableCell = memo(({ cell, isActive, onCellClick, onCellInput, children 
         if (e.key === 'Escape') {
           e.preventDefault();
           e.stopPropagation();
-          // Restore original text and cancel edit
+          // Restore original text but keep focus
           const td = tdRef.current;
-          if (td) td.textContent = originalTextRef.current;
-          onCellInput(cell.id, cell.text); // keep state unchanged (original text was already in state)
-          td?.blur();
+          if (td) {
+            td.textContent = originalTextRef.current;
+            // Move cursor to end
+            if (typeof window.getSelection !== 'undefined' && typeof document.createRange !== 'undefined') {
+              const range = document.createRange();
+              range.selectNodeContents(td);
+              range.collapse(false);
+              const sel = window.getSelection();
+              sel?.removeAllRanges();
+              sel?.addRange(range);
+            }
+          }
+          onCellInput(cell.id, cell.text); // keep state unchanged
           return;
         }
         if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
