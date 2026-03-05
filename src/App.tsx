@@ -71,6 +71,19 @@ const findActiveCell = (table: TableType, cellId: string): TableType['rows'][0][
   return null;
 };
 
+const findContainingTableId = (table: TableType, cellId: string): string | null => {
+  for (const row of table.rows) {
+    for (const cell of row.cells) {
+      if (cell.id === cellId) return table.id;
+      if (cell.table) {
+        const found = findContainingTableId(cell.table, cellId);
+        if (found) return found;
+      }
+    }
+  }
+  return null;
+};
+
 function App() {
   const [documentTable, setDocumentTable] = useState<TableType>(initialDocument);
   const [activeCellId, setActiveCellId] = useState<string | null>(null);
@@ -196,9 +209,7 @@ function App() {
   const activeCellProps = activeCellId ? findActiveCell(documentTable, activeCellId) : null;
   const activeCellType = getCellType(activeCellProps?.className);
   
-  const activeTableId = activeCellId 
-    ? (activeCellId.includes('_') ? activeCellId.substring(0, activeCellId.lastIndexOf('_')) : 'document') 
-    : null;
+  const activeTableId = activeCellId ? findContainingTableId(documentTable, activeCellId) : null;
 
   return (
     <div 
