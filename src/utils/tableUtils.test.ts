@@ -30,8 +30,9 @@ describe('Table navigation and cell typing logic', () => {
     expect(newActiveCellId).toBe("A.2");
 
     const newCell = newTable.rows[1].cells[0];
-    expect(newCell.text).toBe("2");
-    expect(newCell.className).toBe("number"); // should inherit
+    // Now produces a formula referencing the cell above instead of a plain incremented value
+    expect(newCell.text).toBe('=A.1+1');
+    expect(newCell.className).toContain('formula');
   });
 
   it('should preserve type when hitting Tab, creating a new column, and hitting Enter', () => {
@@ -63,10 +64,10 @@ describe('Table navigation and cell typing logic', () => {
     const a2 = doc.rows[1].cells[0];
     const b2 = doc.rows[1].cells[1];
     
-    // A.2 should be "2" and "number"
-    expect(a2.id).toBe("A.2");
-    expect(a2.text).toBe("2");
-    expect(a2.className).toContain("number");
+    // A.2 should have a formula referencing A.1
+    expect(a2.id).toBe('A.2');
+    expect(a2.text).toBe('=A.1+1');
+    expect(a2.className).toContain('formula');
 
     // B.2 should be "" and "text"
     expect(b2.id).toBe("B.2");

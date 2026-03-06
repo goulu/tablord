@@ -197,7 +197,7 @@ function App() {
       if (e.key === 'Enter') {
         e.preventDefault();
         const { newTable, newActiveCellId } = handleEnter(currentTable, currentActiveCellId);
-        setDocumentTable(newTable);
+        setDocumentTable(recalculateTable(newTable));
         setActiveCellId(newActiveCellId);
         return;
       }

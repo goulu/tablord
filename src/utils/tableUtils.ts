@@ -110,15 +110,30 @@ export const handleEnter = (table: Table, activeCellId: string): { newTable: Tab
            }
            
            const cellAbove = lastRow.cells[cIdx2];
-           let newText = "";
-           if (cellAbove?.className?.includes('number') && cellAbove.text.trim() !== '' && !isNaN(Number(cellAbove.text))) {
-             newText = (Number(cellAbove.text) + 1).toString();
+           let newText = '';
+           let newClassName = cellAbove?.className;
+
+           if (cellAbove) {
+             if (cellAbove.text.startsWith('=')) {
+               // Formula cell: copy the formula as-is
+               newText = cellAbove.text;
+               newClassName = setCellTypeClass(cellAbove.className || '', 'formula');
+             } else if (
+               cellAbove.className?.includes('number') &&
+               cellAbove.text.trim() !== '' &&
+               Number.isInteger(Number(cellAbove.text))
+             ) {
+               // Integer number: produce a formula that increments from the cell above
+               // The cell above is in lastRow; its id already encodes col.row
+               newText = `=${cellAbove.id}+1`;
+               newClassName = setCellTypeClass(cellAbove.className || '', 'formula');
+             }
            }
            
            return { 
              id: newCellId, 
              text: newText,
-             className: cellAbove?.className 
+             className: newClassName,
            };
         });
         const newRow: Row = { id: nextRowId, cells: newRowCells };
