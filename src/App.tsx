@@ -142,8 +142,11 @@ function App() {
           const text = document.createTextNode(span.textContent || '');
           span.parentNode?.replaceChild(text, span);
         });
-        // Also strip contenteditable attributes left on any elements
+        // Also strip contenteditable and data-cell-id attributes (used by React, not needed in saved HTML)
         clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
+        clone.querySelectorAll('[data-cell-id]').forEach(el => el.removeAttribute('data-cell-id'));
+        // Also strip the formula from cells that show only their result value
+        // (data-formula is kept so formulas survive page reload)
 
         const htmlToSave = clone.innerHTML;
         fetch('/api/save', {
@@ -219,8 +222,7 @@ function App() {
 
   const activeCellProps = activeCellId ? findActiveCell(documentTable, activeCellId) : null;
   const activeCellType = getCellType(activeCellProps?.className);
-  
-  const activeTableId = activeCellId ? findContainingTableId(documentTable, activeCellId) : null;
+
 
   return (
     <div 
@@ -231,7 +233,6 @@ function App() {
     >
       <TopBar 
         activeCellId={activeCellId} 
-        activeTableId={activeTableId}
         activeCellType={activeCellType}
         onCellTypeChange={handleCellTypeChange}
         onHelpClick={() => setShowHelp(true)} 

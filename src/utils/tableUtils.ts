@@ -1,4 +1,5 @@
 import type { Table, Row } from '../types/document';
+import { COLUMN, ROW, NAME } from './functions';
 
 const convertColToNumber = (col: string): number => {
   let num = 0;
@@ -273,10 +274,11 @@ export const toggleCellClass = (className: string = '', toggleClass: string): st
   }
 };
 
+
 export const evaluateFormula = (formula: string): string => {
   try {
     // eslint-disable-next-line no-new-func
-    const result = Function('"use strict"; return (' + formula.slice(1) + ')')();
+    const result = Function('COLUMN', 'ROW', 'NAME', '"use strict"; return (' + formula.slice(1) + ')')(COLUMN, ROW, NAME);
     return String(result);
   } catch {
     return '#ERROR';
