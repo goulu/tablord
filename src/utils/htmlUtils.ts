@@ -43,8 +43,9 @@ export const parseHtmlToTable = (htmlString: string): Table | null => {
         const formulaAttr = td.getAttribute('data-formula');
         const text = formulaAttr || rawTextContent;
 
-        // Extract class names (excluding 'selected')
-        const classNames = Array.from(td.classList).filter(c => c !== 'selected').join(' ');
+        // Extract class names, excluding transient UI-only classes
+        const TRANSIENT = new Set(['selected', 'formula-ref-target']);
+        const classNames = Array.from(td.classList).filter(c => !TRANSIENT.has(c)).join(' ');
 
         return {
           id: cellId,

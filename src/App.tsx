@@ -196,7 +196,17 @@ function App() {
 
       if (e.key === 'Enter') {
         e.preventDefault();
-        const { newTable, newActiveCellId } = handleEnter(currentTable, currentActiveCellId);
+        // Commit any in-progress edit: read formula text directly from DOM
+        // (avoids stale tableRef when Enter is pressed immediately after typing)
+        let latestTable = currentTable;
+        if (currentActiveCellId) {
+          const activeTd = document.querySelector(`[data-cell-id="${currentActiveCellId}"]`) as HTMLElement | null;
+          if (activeTd && !activeTd.querySelector('table')) {
+            const domText = activeTd.textContent || '';
+            latestTable = updateCellText(latestTable, currentActiveCellId, domText);
+          }
+        }
+        const { newTable, newActiveCellId } = handleEnter(latestTable, currentActiveCellId!);
         setDocumentTable(recalculateTable(newTable));
         setActiveCellId(newActiveCellId);
         return;
