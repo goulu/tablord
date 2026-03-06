@@ -619,6 +619,55 @@ export const evaluateFormula = (
   }
 };
 
+// Helper to resolve all dependencies for SUM() and SUM(start, end)
+const getSumDependencies = (processed: string, currentName: string, allNames: string[]): string[] => {
+  const deps: string[] = [];
+  const parseCellId = (id: string) => {
+    const match = id.match(/^(.*\.)?([A-Z]+)\.(\d+)$/);
+    if (!match) return null;
+    return {
+      prefix: match[1] || '',
+      col: match[2],
+      row: parseInt(match[3], 10)
+    };
+  };
+
+  const current = parseCellId(currentName);
+  if (!current) return deps;
+
+  // match SUM("start", "end") and SUM()
+  const sumRegex = /SUM\((?:\s*"([^"]+)"\s*,\s*"([^"]+)"\s*)?\)/g;
+  
+  for (const m of processed.matchAll(sumRegex)) {
+    const startCell = m[1];
+    const endCell = m[2];
+
+    let targetPrefix = current.prefix;
+    let targetCol = current.col;
+    let startRow = 1;
+    let endRow = current.row - 1;
+
+    if (startCell && endCell) {
+      const start = parseCellId(startCell);
+      const end = parseCellId(endCell);
+      if (start && end && start.prefix === end.prefix && start.col === end.col) {
+        targetPrefix = start.prefix;
+        targetCol = start.col;
+        startRow = Math.min(start.row, end.row);
+        endRow = Math.max(start.row, end.row);
+      }
+    }
+
+    for (let r = startRow; r <= endRow; r++) {
+      const cellName = `${targetPrefix}${targetCol}.${r}`;
+      if (cellName !== currentName && allNames.includes(cellName)) {
+        deps.push(cellName);
+      }
+    }
+  }
+  return deps;
+};
+
 /**
  * Recalculate all formula cells in dependency order (topological sort).
  * Formula cells that form a cycle are marked with #CIRCULAR.
@@ -652,12 +701,20 @@ export const recalculateTable = (table: Table): Table => {
   const deps = new Map<string, Set<string>>();
   // dependents[depName] = set of formula-cell Names that depend on depName
   const dependents = new Map<string, Set<string>>();
+  
+  const allNames = Object.keys(valueMap);
 
   for (const { name, formula } of formulaCells) {
     const processed = preprocessCellRefs(formula, name);
     const refs = new Set<string>();
+    
     for (const m of processed.matchAll(/REF\("([^"]+)"\)/g)) {
       if (formulaNames.has(m[1])) refs.add(m[1]);
+    }
+
+    const sumDeps = getSumDependencies(processed, name, allNames);
+    for (const dep of sumDeps) {
+       if (formulaNames.has(dep)) refs.add(dep);
     }
     deps.set(name, refs);
     for (const dep of refs) {

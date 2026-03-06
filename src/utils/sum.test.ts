@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { initialDocument, Table } from '../types/document';
-import { recalculateTable, buildValueMap, getCellType, setCellTypeClass, evaluateFormula } from './tableUtils';
+import { initialDocument, type Table } from '../types/document';
+import { recalculateTable } from './tableUtils';
 
 const updateCellText = (table: Table, cellId: string, newText: string): Table => {
   const updated = {
