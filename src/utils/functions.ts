@@ -30,12 +30,13 @@ export const makeColumnFn = (currentCellId: string) =>
 export const makeRowFn = (currentCellId: string) =>
   (cellId?: string): number => rowFromId(cellId ?? currentCellId);
 
-/** Returns the full cell name (path) from its id. */
-export const NAME = (cellId: string): string => cellId;
+/** Returns the full cell name (path), or the current cell's name if no argument given */
+export const makeNameFn = (currentCellId: string) =>
+  (cellId?: string): string => cellId ?? currentCellId;
 
 /** Build a context object of functions bound to the current cell */
 export const makeFunctions = (currentCellId: string) => ({
   COLUMN: makeColumnFn(currentCellId),
   ROW: makeRowFn(currentCellId),
-  NAME,
+  NAME: makeNameFn(currentCellId),
 });
