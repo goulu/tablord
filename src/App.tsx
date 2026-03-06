@@ -8,10 +8,10 @@ import { Table } from './components/Table';
 import { HelpPopup } from './components/HelpPopup';
 import './App.css';
 
-// Helper function to deeply update a cell's text by ID
+// Helper: update a cell's text and recalculate the whole table (propagates to dependents)
 const updateCellText = (table: TableType, cellId: string, newText: string): TableType => {
-  const valueMap = buildValueMap(table); // snapshot for cross-cell refs
-  return {
+  const valueMap = buildValueMap(table); // snapshot for immediate formula preview
+  const updated = {
     ...table,
     rows: table.rows.map((row) => ({
       ...row,
@@ -42,6 +42,8 @@ const updateCellText = (table: TableType, cellId: string, newText: string): Tabl
       }),
     })),
   };
+  // Propagate changes to all dependent formulas
+  return recalculateTable(updated);
 };
 
 const updateCellTypeInTree = (table: TableType, cellId: string, newType: 'text' | 'number' | 'formula'): TableType => {

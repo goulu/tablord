@@ -125,7 +125,11 @@ export const handleEnter = (table: Table, activeCellId: string): { newTable: Tab
              ) {
                // Integer number: produce a formula that increments from the cell above
                // The cell above is in lastRow; its id already encodes col.row
-               newText = `=${cellAbove.id}+1`;
+               const localRef =
+                  t.id !== 'document' && cellAbove.id.startsWith(t.id + '.')
+                    ? '.' + cellAbove.id.slice(t.id.length + 1)
+                    : cellAbove.id;
+               newText = `=${localRef}+1`;
                newClassName = setCellTypeClass(cellAbove.className || '', 'formula');
              }
            }
@@ -291,19 +295,50 @@ export const toggleCellClass = (className: string = '', toggleClass: string): st
 
 
 /**
- * Pre-process a formula string: replace Excel-style cell references
- * (A.1, B.$2, $C.3, $C.$2) with REF("A.1") calls.
- * String literals are protected so COLUMN("B.4") is not affected.
+ * Returns the table-prefix part of a cell ID (everything except the final Col.Row segment).
+ * E.g. "B.3.A.2" → "B.3",  "A.1" → ""
  */
-export const preprocessCellRefs = (formula: string): string => {
+export const getTablePrefix = (cellId: string): string => {
+  const m = cellId.match(/^(.+)\.[A-Z]+\.\d+$/);
+  return m ? m[1] : '';
+};
+
+/**
+ * Pre-process a formula string: replace cell references with REF("cellId") calls.
+ *
+ * Supported notations ($ = absolute marker, ignored for lookup):
+ *   .A.2          local shorthand → expands using currentCellId's table prefix
+ *   A.2           simple root ref
+ *   B.3.A.2       full chained ref (sub-table path)
+ *   $A.$2, $B.3.$A.$2, etc.  absolute markers ($ stripped for lookup)
+ *
+ * Quoted string literals (e.g. COLUMN("B.4")) are protected and not modified.
+ */
+export const preprocessCellRefs = (formula: string, currentCellId = ''): string => {
   const strings: string[] = [];
   // Protect quoted strings
   let processed = formula.replace(/"[^"]*"/g, (match) => {
     strings.push(match);
     return `__S${strings.length - 1}__`;
   });
-  // Replace $?ColLetter.$?RowDigits with REF("Col.Row")
-  processed = processed.replace(/\$?([A-Z]+)\.\$?(\d+)/g, (_, col, row) => `REF("${col}.${row}")`);
+
+  const tablePrefix = getTablePrefix(currentCellId);
+
+  // 1. Local shorthand: a dot NOT preceded by a digit, followed by ColLetter.RowNum
+  //    Example:  .A.2  →  REF("B.3.A.2")  (when in table B.3)
+  //    Negative lookbehind (?<!\d) ensures ".A.2" inside "B.3.A.2" is NOT matched here.
+  processed = processed.replace(/(?<!\d)\.(\$?[A-Z]+\.\$?\d+)/g, (_, localPart) => {
+    const lookupId = (tablePrefix ? tablePrefix + '.' : '') + localPart.replace(/\$/g, '');
+    return `REF("${lookupId}")`;
+  });
+
+  // 2. Full chained (or simple) refs: A.1, B.3.A.2, $C.$3, $B.3.$A.$2 …
+  //    Greedy multi-segment match: ColLetter.RowNum (. ColLetter.RowNum)*
+  processed = processed.replace(/\$?[A-Z]+\.\$?\d+(?:\.\$?[A-Z]+\.\$?\d+)*/g, (match) => {
+    const cellId = match.replace(/\$/g, '');
+    return `REF("${cellId}")`;
+  });
+
   // Restore strings
   return processed.replace(/__S(\d+)__/g, (_, i) => strings[parseInt(i, 10)]);
 };
@@ -328,7 +363,7 @@ export const evaluateFormula = (
 ): string => {
   try {
     const { COLUMN, ROW, NAME, REF } = makeFunctions(cellId, (id) => valueMap[id] ?? '');
-    const processed = preprocessCellRefs(formula);
+    const processed = preprocessCellRefs(formula, cellId); // pass cellId for local ref resolution
     // eslint-disable-next-line no-new-func
     const result = Function('COLUMN', 'ROW', 'NAME', 'REF', '"use strict"; return (' + processed.slice(1) + ')')(COLUMN, ROW, NAME, REF);
     return String(result);
@@ -337,34 +372,100 @@ export const evaluateFormula = (
   }
 };
 
+/**
+ * Recalculate all formula cells in dependency order (topological sort).
+ * Formula cells that form a cycle are marked with #CIRCULAR.
+ */
 export const recalculateTable = (table: Table): Table => {
-  // First pass: build a value map using current cell values (pre-recalc)
-  const valueMap = buildValueMap(table);
+  // ── Step 1: collect all cells into a flat map ──────────────────────────────
+  const valueMap: Record<string, string> = {};
+  const formulaCells: { id: string; formula: string }[] = [];
 
-  const walk = (t: Table): Table => ({
+  const collectCells = (t: Table) => {
+    t.rows.forEach(row => row.cells.forEach(cell => {
+      if (cell.text.startsWith('=')) {
+        formulaCells.push({ id: cell.id, formula: cell.text });
+        valueMap[cell.id] = cell.value ?? '';   // seed with previous value
+      } else {
+        valueMap[cell.id] = cell.text;
+      }
+      if (cell.table) collectCells(cell.table);
+    }));
+  };
+  collectCells(table);
+
+  // ── Step 2: build dependency graph ─────────────────────────────────────────
+  const formulaIds = new Set(formulaCells.map(f => f.id));
+  // deps[id] = set of formula-cell IDs that id depends on
+  const deps = new Map<string, Set<string>>();
+  // dependents[dep] = set of formula-cell IDs that depend on dep
+  const dependents = new Map<string, Set<string>>();
+
+  for (const { id, formula } of formulaCells) {
+    const processed = preprocessCellRefs(formula, id);
+    const refs = new Set<string>();
+    for (const m of processed.matchAll(/REF\("([^"]+)"\)/g)) {
+      if (formulaIds.has(m[1])) refs.add(m[1]);
+    }
+    deps.set(id, refs);
+    for (const dep of refs) {
+      if (!dependents.has(dep)) dependents.set(dep, new Set());
+      dependents.get(dep)!.add(id);
+    }
+  }
+
+  // ── Step 3: Kahn's topological sort ────────────────────────────────────────
+  const inDeg = new Map<string, number>();
+  for (const { id } of formulaCells) inDeg.set(id, deps.get(id)?.size ?? 0);
+
+  const queue = [...formulaIds].filter(id => (inDeg.get(id) ?? 0) === 0);
+  const evalOrder: string[] = [];
+
+  while (queue.length > 0) {
+    const id = queue.shift()!;
+    evalOrder.push(id);
+    for (const dep of dependents.get(id) ?? []) {
+      const nd = (inDeg.get(dep) ?? 1) - 1;
+      inDeg.set(dep, nd);
+      if (nd === 0) queue.push(dep);
+    }
+  }
+
+  // Any formula cell not in evalOrder participates in a cycle
+  const cyclicIds = new Set([...formulaIds].filter(id => !evalOrder.includes(id)));
+
+  // ── Step 4: evaluate in topological order, updating valueMap ───────────────
+  for (const id of evalOrder) {
+    const formula = formulaCells.find(f => f.id === id)!.formula;
+    const result = evaluateFormula(formula, id, valueMap);
+    valueMap[id] = result;
+  }
+  for (const id of cyclicIds) {
+    valueMap[id] = '#CIRCULAR';
+  }
+
+  // ── Step 5: rebuild the table tree with updated values ─────────────────────
+  const applyValues = (t: Table): Table => ({
     ...t,
     rows: t.rows.map(row => ({
       ...row,
       cells: row.cells.map(cell => {
         if (cell.text.startsWith('=')) {
-          const newValue = evaluateFormula(cell.text, cell.id, valueMap);
-          // Update the map so later formula cells can reference this result
-          valueMap[cell.id] = newValue;
           return {
             ...cell,
-            value: newValue,
+            value: valueMap[cell.id] ?? '#ERROR',
             className: setCellTypeClass(cell.className || '', 'formula'),
-            table: cell.table ? walk(cell.table) : undefined,
+            table: cell.table ? applyValues(cell.table) : undefined,
           };
         }
         return {
           ...cell,
           value: undefined,
-          table: cell.table ? walk(cell.table) : undefined,
+          table: cell.table ? applyValues(cell.table) : undefined,
         };
       }),
     })),
   });
 
-  return walk(table);
+  return applyValues(table);
 };
