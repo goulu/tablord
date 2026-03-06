@@ -1,7 +1,7 @@
 /**
  * functions.ts
  * Excel-like built-in functions available in tablord formulas.
- * Call makeFunctions(cellId) to get a set of functions bound to the current cell.
+ * Call makeFunctions(cellId, getCell) to get a set of functions bound to the current cell.
  */
 
 const colLetterToNumber = (col: string): number => {
@@ -22,21 +22,36 @@ const rowFromId = (cellId: string): number => {
   return match ? parseInt(match[1], 10) : 0;
 };
 
-/** Returns the column number of a cell, or of the current cell if no argument given */
+/** COLUMN(cellId?) — column number; defaults to current cell */
 export const makeColumnFn = (currentCellId: string) =>
   (cellId?: string): number => colFromId(cellId ?? currentCellId);
 
-/** Returns the row number of a cell, or of the current cell if no argument given */
+/** ROW(cellId?) — row number; defaults to current cell */
 export const makeRowFn = (currentCellId: string) =>
   (cellId?: string): number => rowFromId(cellId ?? currentCellId);
 
-/** Returns the full cell name (path), or the current cell's name if no argument given */
+/** NAME(cellId?) — full cell address; defaults to current cell */
 export const makeNameFn = (currentCellId: string) =>
   (cellId?: string): string => cellId ?? currentCellId;
 
-/** Build a context object of functions bound to the current cell */
-export const makeFunctions = (currentCellId: string) => ({
+/**
+ * REF(cellId) — returns the value of another cell.
+ * Returns a number if the value is numeric, otherwise a string.
+ */
+export const makeRefFn = (getCell: (id: string) => string) =>
+  (cellId: string): number | string => {
+    const val = getCell(cellId);
+    const num = Number(val);
+    return val !== '' && !isNaN(num) ? num : val;
+  };
+
+/** Build a context object of functions bound to the current cell and lookup map */
+export const makeFunctions = (
+  currentCellId: string,
+  getCell: (id: string) => string = () => ''
+) => ({
   COLUMN: makeColumnFn(currentCellId),
   ROW: makeRowFn(currentCellId),
   NAME: makeNameFn(currentCellId),
+  REF: makeRefFn(getCell),
 });

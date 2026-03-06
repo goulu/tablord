@@ -275,11 +275,47 @@ export const toggleCellClass = (className: string = '', toggleClass: string): st
 };
 
 
-export const evaluateFormula = (formula: string, cellId = ''): string => {
+/**
+ * Pre-process a formula string: replace Excel-style cell references
+ * (A.1, B.$2, $C.3, $C.$2) with REF("A.1") calls.
+ * String literals are protected so COLUMN("B.4") is not affected.
+ */
+export const preprocessCellRefs = (formula: string): string => {
+  const strings: string[] = [];
+  // Protect quoted strings
+  let processed = formula.replace(/"[^"]*"/g, (match) => {
+    strings.push(match);
+    return `__S${strings.length - 1}__`;
+  });
+  // Replace $?ColLetter.$?RowDigits with REF("Col.Row")
+  processed = processed.replace(/\$?([A-Z]+)\.\$?(\d+)/g, (_, col, row) => `REF("${col}.${row}")`);
+  // Restore strings
+  return processed.replace(/__S(\d+)__/g, (_, i) => strings[parseInt(i, 10)]);
+};
+
+/** Build a flat map of cellId → current display value for the whole table tree */
+export const buildValueMap = (table: Table): Record<string, string> => {
+  const map: Record<string, string> = {};
+  const walk = (t: Table) => {
+    t.rows.forEach(row => row.cells.forEach(cell => {
+      map[cell.id] = cell.value ?? cell.text;
+      if (cell.table) walk(cell.table);
+    }));
+  };
+  walk(table);
+  return map;
+};
+
+export const evaluateFormula = (
+  formula: string,
+  cellId = '',
+  valueMap: Record<string, string> = {}
+): string => {
   try {
-    const { COLUMN, ROW, NAME } = makeFunctions(cellId);
+    const { COLUMN, ROW, NAME, REF } = makeFunctions(cellId, (id) => valueMap[id] ?? '');
+    const processed = preprocessCellRefs(formula);
     // eslint-disable-next-line no-new-func
-    const result = Function('COLUMN', 'ROW', 'NAME', '"use strict"; return (' + formula.slice(1) + ')')(COLUMN, ROW, NAME);
+    const result = Function('COLUMN', 'ROW', 'NAME', 'REF', '"use strict"; return (' + processed.slice(1) + ')')(COLUMN, ROW, NAME, REF);
     return String(result);
   } catch {
     return '#ERROR';
@@ -287,26 +323,33 @@ export const evaluateFormula = (formula: string, cellId = ''): string => {
 };
 
 export const recalculateTable = (table: Table): Table => {
-  return {
-    ...table,
-    rows: table.rows.map(row => ({
+  // First pass: build a value map using current cell values (pre-recalc)
+  const valueMap = buildValueMap(table);
+
+  const walk = (t: Table): Table => ({
+    ...t,
+    rows: t.rows.map(row => ({
       ...row,
       cells: row.cells.map(cell => {
-        let newValue = cell.value;
-        let newClassName = cell.className;
         if (cell.text.startsWith('=')) {
-          newValue = evaluateFormula(cell.text, cell.id);
-          newClassName = setCellTypeClass(cell.className || '', 'formula');
-        } else {
-          newValue = undefined;
+          const newValue = evaluateFormula(cell.text, cell.id, valueMap);
+          // Update the map so later formula cells can reference this result
+          valueMap[cell.id] = newValue;
+          return {
+            ...cell,
+            value: newValue,
+            className: setCellTypeClass(cell.className || '', 'formula'),
+            table: cell.table ? walk(cell.table) : undefined,
+          };
         }
-        return { 
-          ...cell, 
-          value: newValue, 
-          className: newClassName,
-          table: cell.table ? recalculateTable(cell.table) : undefined 
+        return {
+          ...cell,
+          value: undefined,
+          table: cell.table ? walk(cell.table) : undefined,
         };
-      })
-    }))
-  };
+      }),
+    })),
+  });
+
+  return walk(table);
 };

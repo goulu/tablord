@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { initialDocument } from './types/document';
 import type { Table as TableType } from './types/document';
-import { handleTab, handleEnter, handleCtrlTab, handleArrow, getCellType, setCellTypeClass, evaluateFormula, recalculateTable } from './utils/tableUtils';
+import { handleTab, handleEnter, handleCtrlTab, handleArrow, getCellType, setCellTypeClass, evaluateFormula, recalculateTable, buildValueMap } from './utils/tableUtils';
 import { parseHtmlToTable } from './utils/htmlUtils';
 import { TopBar } from './components/TopBar';
 import { Table } from './components/Table';
@@ -10,6 +10,7 @@ import './App.css';
 
 // Helper function to deeply update a cell's text by ID
 const updateCellText = (table: TableType, cellId: string, newText: string): TableType => {
+  const valueMap = buildValueMap(table); // snapshot for cross-cell refs
   return {
     ...table,
     rows: table.rows.map((row) => ({
@@ -18,7 +19,7 @@ const updateCellText = (table: TableType, cellId: string, newText: string): Tabl
         if (cell.id === cellId) {
           // Detect formula — always keep class as 'formula'
           if (newText.startsWith('=')) {
-            const evaluated = evaluateFormula(newText, cell.id);
+            const evaluated = evaluateFormula(newText, cell.id, valueMap);
             return { ...cell, text: newText, value: evaluated, className: setCellTypeClass(cell.className, 'formula') };
           }
           // Auto-detect number
