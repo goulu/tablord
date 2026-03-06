@@ -234,11 +234,23 @@ function App() {
     const activeTd = document.querySelector(`[data-cell-id="${activeCellId}"]`) as HTMLElement | null;
     if (!activeTd) return;
 
-    // Relative form: "B.3"  |  Absolute form: "$B.$3"
+    // Relative: "B.3"  |  Absolute: "$B.$3"
     const relRef = clickedCellId;
     const absRef = clickedCellId
-      .replace(/([A-Z]+)\./g, '$$$1.')
-      .replace(/\.(\d+)/g, '.$$$$1');
+      .replace(/([A-Z]+)\./g, '$$$1.')  // B. → $B.   ('$$$1' = literal$ + capture group 1)
+      .replace(/\.(\d+)/g, '.$$$1');   // .3 → .$3   ('.$$$1' = .$ + capture group 1)
+
+    // Place cursor at a specific text offset in a contentEditable element
+    const setCursor = (el: HTMLElement, offset: number) => {
+      const node = el.firstChild;
+      if (!node) return;
+      const range = document.createRange();
+      range.setStart(node, Math.min(offset, node.textContent?.length ?? 0));
+      range.collapse(true);
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(range);
+    };
 
     const lastRef = formulaRefStateRef.current;
 
@@ -252,6 +264,9 @@ function App() {
           activeTd.textContent = newText;
           formulaRefStateRef.current = { cellId: clickedCellId, refText: absRef };
           setDocumentTable(prev => updateCellText(prev, activeCellId, newText));
+          activeTd.focus();
+          setCursor(activeTd, idx + absRef.length);
+          return;
         }
       } else {
         // Cycle absolute → remove
@@ -261,10 +276,13 @@ function App() {
           activeTd.textContent = newText;
           formulaRefStateRef.current = null;
           setDocumentTable(prev => updateCellText(prev, activeCellId, newText));
+          activeTd.focus();
+          setCursor(activeTd, idx);
+          return;
         }
       }
     } else {
-      // Insert relative ref at cursor; execCommand preserves cursor position
+      // Insert relative ref at cursor; execCommand preserves cursor position naturally
       const inserted = document.execCommand('insertText', false, relRef);
       if (!inserted) {
         const newText = (activeTd.textContent || '') + relRef;
