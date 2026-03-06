@@ -38,4 +38,6 @@ const documentHtmlPlugin = () => ({
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), documentHtmlPlugin()],
+  // For GitHub Pages: assets are served under /tablord/ in production
+  base: process.env.NODE_ENV === 'production' ? '/tablord/' : '/',
 })
