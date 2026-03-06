@@ -135,6 +135,7 @@ const EditableCell = memo(({ cell, isActive, isEditingFormula, onCellClick, onCe
         onCellClick(cell.id);
       }}
       onContextMenu={(e) => {
+        e.stopPropagation();
         onCellContextMenu?.(e, cell.id);
       }}
     >
