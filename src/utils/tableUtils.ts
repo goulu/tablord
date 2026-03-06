@@ -181,8 +181,8 @@ export const handleEnter = (table: Table, activeCellId: string): { newTable: Tab
 
            if (cellAbove) {
              if (cellAbove.text.startsWith('=')) {
-               // Formula cell: copy the formula as-is (we'll fix offsetFormulaRows relative references later)
-               newText = cellAbove.text;
+               // Formula cell: apply offsetFormulaRows to adjust relative references
+               newText = offsetFormulaRows(cellAbove.text, 1);
                newClassName = setCellTypeClass(cellAbove.className || '', 'formula');
              } else if (
                cellAbove.className?.includes('number') &&
@@ -507,21 +507,42 @@ export const preprocessCellRefs = (formula: string, currentCellId = ''): string 
 
   const tablePrefix = getTablePrefix(currentCellId);
 
+  // 0. Special case: SUM(start, end) without quotes. We want to treat the arguments as strings
+  // so they aren't converted to REF() calls, which would evaluate them before SUM receives them.
+  // We match SUM(arg1, arg2) where args are not already quoted.
+  processed = processed.replace(/SUM\(\s*([^",\)]+)\s*,\s*([^",\)]+)\s*\)/ig, (_, arg1, arg2) => {
+    const cleanArg1 = arg1.trim();
+    const cleanArg2 = arg2.trim();
+    const wrap = (s: string) => {
+      // If it's already a protected string like __S0__
+      if (/^__S\d+__$/.test(s)) return s;
+      // If it's not a number, wrap it in quotes and protect it
+      if (s && !/^[-+]?\d*\.?\d+$/.test(s)) {
+        strings.push(`"${s}"`);
+        return `__S${strings.length - 1}__`;
+      }
+      return s;
+    };
+    return `SUM(${wrap(cleanArg1)}, ${wrap(cleanArg2)})`;
+  });
+
   // 1. Local shorthand: a dot NOT preceded by a digit, followed by ColLetter.RowNum
   //    Example:  .A.2  →  REF("B.3.A.2")  (when in table B.3)
   //    Negative lookbehind (?<!\d) ensures ".A.2" inside "B.3.A.2" is NOT matched here.
-  processed = processed.replace(/(?<!\d)\.(\$?[A-Z]+\.\$?\d+)/g, (_, localPart) => {
+  //    (Replaced (?<!\d) with (^|[^\d]) to support Safari/Vivaldi which don't support lookbehinds)
+  processed = processed.replace(/(^|[^\d])\.(\$?[A-Z]+\.\$?\d+)/g, (_, prev, localPart) => {
     const lookupId = (tablePrefix ? tablePrefix + '.' : '') + localPart.replace(/\$/g, '');
-    return `REF("${lookupId}")`;
+    return `${prev}REF("${lookupId}")`;
   });
 
   // 2. Full chained (or simple) refs: A.1, B.3.A.2, $C.$3, $B.3.$A.$2 …
   //    Greedy multi-segment match: ColLetter.RowNum (. ColLetter.RowNum)*
   //    We add negative lookbehind (?<!REF\("|[A-Z0-9\.]) to avoid double-replacing refs already processed in step 1,
   //    or matching inside larger identifiers.
-  processed = processed.replace(/(?<!REF\("|[A-Z0-9\.])\$?[A-Z]+\.\$?\d+(?:\.\$?[A-Z]+\.\$?\d+)*/g, (match) => {
+  //    (Replaced (?<!...) with (^|[^A-Z0-9\."]) to support Safari/Vivaldi)
+  processed = processed.replace(/(^|[^A-Z0-9\."])(\$?[A-Z]+\.\$?\d+(?:\.\$?[A-Z]+\.\$?\d+)*)/g, (_, prev, match) => {
     const cellId = match.replace(/\$/g, '');
-    return `REF("${cellId}")`;
+    return `${prev}REF("${cellId}")`;
   });
 
   // Restore strings
@@ -588,10 +609,10 @@ export const evaluateFormula = (
   valueMap: Record<string, string> = {}
 ): string => {
   try {
-    const { COLUMN, ROW, NAME, REF } = makeFunctions(cellName, (name) => valueMap[name] ?? '');
+    const { COLUMN, ROW, NAME, REF, SUM } = makeFunctions(cellName, (name) => valueMap[name] ?? '', valueMap);
     const processed = preprocessCellRefs(formula, cellName); // pass visual cellName for local ref resolution
     // eslint-disable-next-line no-new-func
-    const result = Function('COLUMN', 'ROW', 'NAME', 'REF', '"use strict"; return (' + processed.slice(1) + ')')(COLUMN, ROW, NAME, REF);
+    const result = Function('COLUMN', 'ROW', 'NAME', 'REF', 'SUM', '"use strict"; return (' + processed.slice(1) + ')')(COLUMN, ROW, NAME, REF, SUM);
     return String(result);
   } catch {
     return '#ERROR';
