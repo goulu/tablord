@@ -1,5 +1,5 @@
 import type { Table, Row } from '../types/document';
-import { COLUMN, ROW, NAME } from './functions';
+import { makeFunctions } from './functions';
 
 const convertColToNumber = (col: string): number => {
   let num = 0;
@@ -275,8 +275,9 @@ export const toggleCellClass = (className: string = '', toggleClass: string): st
 };
 
 
-export const evaluateFormula = (formula: string): string => {
+export const evaluateFormula = (formula: string, cellId = ''): string => {
   try {
+    const { COLUMN, ROW, NAME } = makeFunctions(cellId);
     // eslint-disable-next-line no-new-func
     const result = Function('COLUMN', 'ROW', 'NAME', '"use strict"; return (' + formula.slice(1) + ')')(COLUMN, ROW, NAME);
     return String(result);
@@ -294,9 +295,7 @@ export const recalculateTable = (table: Table): Table => {
         let newValue = cell.value;
         let newClassName = cell.className;
         if (cell.text.startsWith('=')) {
-          newValue = evaluateFormula(cell.text);
-          // Keep the class as 'formula' regardless of whether the result is a number.
-          // CSS handles the alignment: right when inactive, left when editing.
+          newValue = evaluateFormula(cell.text, cell.id);
           newClassName = setCellTypeClass(cell.className || '', 'formula');
         } else {
           newValue = undefined;

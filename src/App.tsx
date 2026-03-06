@@ -18,7 +18,7 @@ const updateCellText = (table: TableType, cellId: string, newText: string): Tabl
         if (cell.id === cellId) {
           // Detect formula — always keep class as 'formula'
           if (newText.startsWith('=')) {
-            const evaluated = evaluateFormula(newText);
+            const evaluated = evaluateFormula(newText, cell.id);
             return { ...cell, text: newText, value: evaluated, className: setCellTypeClass(cell.className, 'formula') };
           }
           // Auto-detect number

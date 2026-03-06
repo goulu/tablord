@@ -1,28 +1,41 @@
 /**
  * functions.ts
  * Excel-like built-in functions available in tablord formulas.
- * They are injected into the evaluation context by evaluateFormula().
+ * Call makeFunctions(cellId) to get a set of functions bound to the current cell.
  */
 
-/** Returns the column number of a cell (A=1, B=2, AA=27, ...) */
-export const COLUMN = (cellId: string): number => {
-  const match = cellId.match(/([A-Z]+)\.\d+$/);
-  if (!match) return 0;
+const colLetterToNumber = (col: string): number => {
   let num = 0;
-  for (const ch of match[1]) {
+  for (const ch of col) {
     num = num * 26 + (ch.charCodeAt(0) - 64);
   }
   return num;
 };
 
-/** Returns the row number of a cell */
-export const ROW = (cellId: string): number => {
+const colFromId = (cellId: string): number => {
+  const match = cellId.match(/([A-Z]+)\.\d+$/);
+  return match ? colLetterToNumber(match[1]) : 0;
+};
+
+const rowFromId = (cellId: string): number => {
   const match = cellId.match(/(\d+)$/);
   return match ? parseInt(match[1], 10) : 0;
 };
 
-/**
- * Returns the full cell name (path) from its id.
- * Equivalent to the cell address shown in the status bar.
- */
+/** Returns the column number of a cell, or of the current cell if no argument given */
+export const makeColumnFn = (currentCellId: string) =>
+  (cellId?: string): number => colFromId(cellId ?? currentCellId);
+
+/** Returns the row number of a cell, or of the current cell if no argument given */
+export const makeRowFn = (currentCellId: string) =>
+  (cellId?: string): number => rowFromId(cellId ?? currentCellId);
+
+/** Returns the full cell name (path) from its id. */
 export const NAME = (cellId: string): string => cellId;
+
+/** Build a context object of functions bound to the current cell */
+export const makeFunctions = (currentCellId: string) => ({
+  COLUMN: makeColumnFn(currentCellId),
+  ROW: makeRowFn(currentCellId),
+  NAME,
+});
