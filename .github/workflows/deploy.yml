@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - new
+      - master
+  workflow_dispatch: # allow manual trigger from GitHub Actions UI
 
 # Allow one concurrent deployment
 concurrency:
