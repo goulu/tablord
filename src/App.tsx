@@ -105,58 +105,59 @@ function App() {
   const activeCellRef = useRef(activeCellId);
   const documentContainerRef = useRef<HTMLDivElement>(null);
 
-  // Load document.html on startup
+  // Load on startup: localStorage first, then dev-server /api/load as fallback
   useEffect(() => {
+    const STORAGE_KEY = 'tablord_document';
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const loadedTable = parseHtmlToTable(saved);
+      if (loadedTable) {
+        setDocumentTable(recalculateTable(loadedTable));
+        return;
+      }
+    }
+    // Fallback to dev-server file (only works when running locally)
     fetch('/api/load')
-      .then(res => {
-        if (res.ok) return res.text();
-        throw new Error('No document.html found');
-      })
+      .then(res => { if (res.ok) return res.text(); throw new Error('no api'); })
       .then(html => {
         const loadedTable = parseHtmlToTable(html);
-        if (loadedTable) {
-          setDocumentTable(recalculateTable(loadedTable));
-        }
+        if (loadedTable) setDocumentTable(recalculateTable(loadedTable));
       })
-      .catch(err => console.log('Starting with initial document:', err.message));
+      .catch(() => {}); // silently ignore — not available on GitHub Pages
   }, []);
 
-  // Save document HTML whenever documentTable changes
+  // Persist document whenever it changes
   useEffect(() => {
+    const STORAGE_KEY = 'tablord_document';
     tableRef.current = documentTable;
 
-    // We use setTimeout to ensure React has flushed the DOM updates before we grab the HTML
     const timer = setTimeout(() => {
-      if (documentContainerRef.current) {
-        // Clone to strip "selected" classes before saving
-        const clone = documentContainerRef.current.cloneNode(true) as HTMLDivElement;
-        const selectedEls = clone.querySelectorAll('.selected');
-        selectedEls.forEach(el => el.classList.remove('selected'));
-        // Remove empty class attributes
-        const allEls = clone.querySelectorAll('*');
-        allEls.forEach(el => {
-          if (el.getAttribute('class') === '') el.removeAttribute('class');
-        });
-        // Strip the EditableText <span> wrappers — replace with their text content
-        const spans = clone.querySelectorAll('span');
-        spans.forEach(span => {
-          const text = document.createTextNode(span.textContent || '');
-          span.parentNode?.replaceChild(text, span);
-        });
-        // Also strip contenteditable and data-cell-id attributes (used by React, not needed in saved HTML)
-        clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
-        clone.querySelectorAll('[data-cell-id]').forEach(el => el.removeAttribute('data-cell-id'));
-        // Also strip the formula from cells that show only their result value
-        // (data-formula is kept so formulas survive page reload)
+      if (!documentContainerRef.current) return;
+      // Clone to strip transient UI attributes before saving
+      const clone = documentContainerRef.current.cloneNode(true) as HTMLDivElement;
+      clone.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+      clone.querySelectorAll('.formula-ref-target').forEach(el => el.classList.remove('formula-ref-target'));
+      clone.querySelectorAll('*').forEach(el => {
+        if (el.getAttribute('class') === '') el.removeAttribute('class');
+      });
+      clone.querySelectorAll('span').forEach(span => {
+        span.parentNode?.replaceChild(document.createTextNode(span.textContent || ''), span);
+      });
+      clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
+      clone.querySelectorAll('[data-cell-id]').forEach(el => el.removeAttribute('data-cell-id'));
 
-        const htmlToSave = clone.innerHTML;
-        fetch('/api/save', {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/html' },
-          body: htmlToSave
-        }).catch(err => console.error('Failed to save document.html:', err));
-      }
-    }, 100); // 100ms debounce
+      const htmlToSave = clone.innerHTML;
+
+      // Always persist to localStorage (works everywhere)
+      localStorage.setItem(STORAGE_KEY, htmlToSave);
+
+      // Also sync to dev-server file when available
+      fetch('/api/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/html' },
+        body: htmlToSave
+      }).catch(() => {}); // silently ignore on GitHub Pages
+    }, 100);
     return () => clearTimeout(timer);
   }, [documentTable]);
 
