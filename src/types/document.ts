@@ -17,16 +17,18 @@ export interface Table {
   rows: Row[];
 }
 
+export const generateId = (): string => Math.random().toString(36).substring(2, 10);
+
 // Initial empty document structure: a table named "document", 1 column "A", 1 row "1".
 export const initialDocument: Table = {
-  id: "document",
+  id: "document", // Root table ID is fixed to 'document' for specific checks
   columns: ["A"],
   rows: [
     {
-      id: "1",
+      id: generateId(), // Row UUID
       cells: [
         {
-          id: "A.1",
+          id: generateId(), // Cell UUID
           text: "",
         },
       ],

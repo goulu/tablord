@@ -1,4 +1,5 @@
 import type { Table, Row } from '../types/document';
+import { generateId } from '../types/document';
 import { makeFunctions } from './functions';
 
 const convertColToNumber = (col: string): number => {
@@ -31,6 +32,72 @@ export const getNextRowId = (rowId: string): string => {
   return rowId + "_new";
 };
 
+/**
+ * Computes the visual name (e.g. "A.1", "B.3.C.2") of a cell given its UUID,
+ * by traversing the table tree.
+ */
+export const getCellNameById = (table: Table, targetCellId: string): string | null => {
+  const search = (t: Table, prefix: string): string | null => {
+    for (let rIdx = 0; rIdx < t.rows.length; rIdx++) {
+      const row = t.rows[rIdx];
+      for (let cIdx = 0; cIdx < row.cells.length; cIdx++) {
+        const cell = row.cells[cIdx];
+        const colName = t.columns[cIdx];
+        const cellName = `${prefix}${colName}.${rIdx + 1}`;
+        
+        if (cell.id === targetCellId) {
+          return cellName;
+        }
+        
+        if (cell.table) {
+          const found = search(cell.table, `${cellName}.`);
+          if (found) return found;
+        }
+      }
+    }
+    return null;
+  };
+  return search(table, '');
+};
+
+/**
+ * Finds the UUID of a cell given its visual name (e.g. "A.1").
+ */
+export const getCellIdByName = (table: Table, name: string): string | null => {
+  const parts = name.split('.');
+  
+  let currentTable = table;
+  let currentCellId: string | null = null;
+  
+  for (let i = 0; i < parts.length; i += 2) {
+    if (i + 1 >= parts.length) return null; // Invalid format
+    const colName = parts[i];
+    const rowNum = parseInt(parts[i + 1], 10);
+    
+    if (isNaN(rowNum)) return null;
+    
+    const colIdx = currentTable.columns.indexOf(colName);
+    const rIdx = rowNum - 1;
+    
+    if (colIdx === -1 || rIdx < 0 || rIdx >= currentTable.rows.length) {
+      return null;
+    }
+    
+    const cell = currentTable.rows[rIdx].cells[colIdx];
+    if (!cell) return null;
+    
+    currentCellId = cell.id;
+    
+    // If not the last segment, we must traverse into the sub-table
+    if (i + 2 < parts.length) {
+      if (!cell.table) return null;
+      currentTable = cell.table;
+    }
+  }
+  
+  return currentCellId;
+};
+
 export const handleTab = (table: Table, activeCellId: string): { newTable: Table, newActiveCellId: string } => {
   let newActiveCellId = activeCellId;
   let found = false;
@@ -46,8 +113,7 @@ export const handleTab = (table: Table, activeCellId: string): { newTable: Table
           const nextColName = getNextColumnName(t.columns[t.columns.length - 1]);
           const newColumns = [...t.columns, nextColName];
           const newRows = t.rows.map((r, i) => {
-            const prefix = t.id === 'document' ? '' : `${t.id}.`;
-            const newCellId = `${prefix}${nextColName}.${r.id}`;
+            const newCellId = generateId();
             if (i === rIdx) {
                newActiveCellId = newCellId;
             }
@@ -99,12 +165,12 @@ export const handleEnter = (table: Table, activeCellId: string): { newTable: Tab
       const cIdx = row.cells.findIndex(c => c.id === activeCellId);
       if (cIdx !== -1) {
         found = true;
+        found = true;
         // create new row below the LAST row to maintain 1, 2, 3 ordering
         const lastRow = t.rows[t.rows.length - 1];
         const nextRowId = getNextRowId(lastRow.id);
         const newRowCells = t.columns.map((colName, cIdx2) => {
-           const prefix = t.id === 'document' ? '' : `${t.id}.`;
-           const newCellId = `${prefix}${colName}.${nextRowId}`;
+           const newCellId = generateId(); // Use UUID instead of coordinate string
            if (colName === t.columns[cIdx]) {
               newActiveCellId = newCellId;
            }
@@ -115,7 +181,7 @@ export const handleEnter = (table: Table, activeCellId: string): { newTable: Tab
 
            if (cellAbove) {
              if (cellAbove.text.startsWith('=')) {
-               // Formula cell: copy the formula as-is
+               // Formula cell: copy the formula as-is (we'll fix offsetFormulaRows relative references later)
                newText = cellAbove.text;
                newClassName = setCellTypeClass(cellAbove.className || '', 'formula');
              } else if (
@@ -124,11 +190,13 @@ export const handleEnter = (table: Table, activeCellId: string): { newTable: Tab
                Number.isInteger(Number(cellAbove.text))
              ) {
                // Integer number: produce a formula that increments from the cell above
-               // The cell above is in lastRow; its id already encodes col.row
+               // We will fully rewrite the "offset by 1" logic to rely on position later.
+               const expectedCellAboveName = getCellNameById(table, cellAbove.id) || '';
+               
                const localRef =
-                  t.id !== 'document' && cellAbove.id.startsWith(t.id + '.')
-                    ? '.' + cellAbove.id.slice(t.id.length + 1)
-                    : cellAbove.id;
+                  t.id !== 'document' && expectedCellAboveName.startsWith(t.id + '.')
+                    ? '.' + expectedCellAboveName.slice(t.id.length + 1)
+                    : expectedCellAboveName;
                newText = `=${localRef}+1`;
                newClassName = setCellTypeClass(cellAbove.className || '', 'formula');
              }
@@ -185,8 +253,9 @@ export const handleCtrlTab = (table: Table, activeCellId: string): { newTable: T
         if (cell.id === activeCellId) {
           found = true;
           rowModified = true;
-          const subTableId = cell.id;
-          const newCellId = `${subTableId}.A.1`;
+          // Generating a unique ID for the subtable instead of cell.id
+          const subTableId = generateId(); 
+          const newCellId = generateId();
           newActiveCellId = newCellId;
           
           const newSubTable: Table = {
@@ -194,7 +263,7 @@ export const handleCtrlTab = (table: Table, activeCellId: string): { newTable: T
             columns: ["A"],
             rows: [
               {
-                id: "1",
+                id: generateId(),
                 cells: [
                   {
                     id: newCellId,
@@ -496,27 +565,31 @@ export const offsetFormulaRows = (formula: string, rowOffset: number): string =>
   return processed.replace(/__S(\d+)__/g, (_, i) => strings[parseInt(i, 10)]);
 };
 
-/** Build a flat map of cellId → current display value for the whole table tree */
+/** Build a flat map of visual cell name → current display value for the whole table tree */
 export const buildValueMap = (table: Table): Record<string, string> => {
   const map: Record<string, string> = {};
-  const walk = (t: Table) => {
-    t.rows.forEach(row => row.cells.forEach(cell => {
-      map[cell.id] = cell.value ?? cell.text;
-      if (cell.table) walk(cell.table);
-    }));
+  const walk = (t: Table, prefix: string) => {
+    t.rows.forEach((row, rIdx) => {
+      row.cells.forEach((cell, cIdx) => {
+        const colName = t.columns[cIdx];
+        const cellName = `${prefix}${colName}.${rIdx + 1}`;
+        map[cellName] = cell.value ?? cell.text;
+        if (cell.table) walk(cell.table, `${cellName}.`);
+      });
+    });
   };
-  walk(table);
+  walk(table, '');
   return map;
 };
 
 export const evaluateFormula = (
   formula: string,
-  cellId = '',
+  cellName = '',
   valueMap: Record<string, string> = {}
 ): string => {
   try {
-    const { COLUMN, ROW, NAME, REF } = makeFunctions(cellId, (id) => valueMap[id] ?? '');
-    const processed = preprocessCellRefs(formula, cellId); // pass cellId for local ref resolution
+    const { COLUMN, ROW, NAME, REF } = makeFunctions(cellName, (name) => valueMap[name] ?? '');
+    const processed = preprocessCellRefs(formula, cellName); // pass visual cellName for local ref resolution
     // eslint-disable-next-line no-new-func
     const result = Function('COLUMN', 'ROW', 'NAME', 'REF', '"use strict"; return (' + processed.slice(1) + ')')(COLUMN, ROW, NAME, REF);
     return String(result);
@@ -530,54 +603,59 @@ export const evaluateFormula = (
  * Formula cells that form a cycle are marked with #CIRCULAR.
  */
 export const recalculateTable = (table: Table): Table => {
-  // ── Step 1: collect all cells into a flat map ──────────────────────────────
+  // ── Step 1: collect all cells into a flat map keyed by VISUAL NAME (`A.1`)
   const valueMap: Record<string, string> = {};
-  const formulaCells: { id: string; formula: string }[] = [];
+  const formulaCells: { id: string; name: string; formula: string }[] = [];
 
-  const collectCells = (t: Table) => {
-    t.rows.forEach(row => row.cells.forEach(cell => {
-      if (cell.text.startsWith('=')) {
-        formulaCells.push({ id: cell.id, formula: cell.text });
-        valueMap[cell.id] = cell.value ?? '';   // seed with previous value
-      } else {
-        valueMap[cell.id] = cell.text;
-      }
-      if (cell.table) collectCells(cell.table);
-    }));
+  const collectCells = (t: Table, prefix: string) => {
+    t.rows.forEach((row, rIdx) => {
+      row.cells.forEach((cell, cIdx) => {
+        const colName = t.columns[cIdx];
+        const cellName = `${prefix}${colName}.${rIdx + 1}`;
+        
+        if (cell.text.startsWith('=')) {
+          formulaCells.push({ id: cell.id, name: cellName, formula: cell.text });
+          valueMap[cellName] = cell.value ?? '';   // seed with previous value
+        } else {
+          valueMap[cellName] = cell.text;
+        }
+        if (cell.table) collectCells(cell.table, `${cellName}.`);
+      });
+    });
   };
-  collectCells(table);
+  collectCells(table, '');
 
-  // ── Step 2: build dependency graph ─────────────────────────────────────────
-  const formulaIds = new Set(formulaCells.map(f => f.id));
-  // deps[id] = set of formula-cell IDs that id depends on
+  // ── Step 2: build dependency graph based on VISUAL NAMES
+  const formulaNames = new Set(formulaCells.map(f => f.name));
+  // deps[name] = set of formula-cell Names that this name depends on
   const deps = new Map<string, Set<string>>();
-  // dependents[dep] = set of formula-cell IDs that depend on dep
+  // dependents[depName] = set of formula-cell Names that depend on depName
   const dependents = new Map<string, Set<string>>();
 
-  for (const { id, formula } of formulaCells) {
-    const processed = preprocessCellRefs(formula, id);
+  for (const { name, formula } of formulaCells) {
+    const processed = preprocessCellRefs(formula, name);
     const refs = new Set<string>();
     for (const m of processed.matchAll(/REF\("([^"]+)"\)/g)) {
-      if (formulaIds.has(m[1])) refs.add(m[1]);
+      if (formulaNames.has(m[1])) refs.add(m[1]);
     }
-    deps.set(id, refs);
+    deps.set(name, refs);
     for (const dep of refs) {
       if (!dependents.has(dep)) dependents.set(dep, new Set());
-      dependents.get(dep)!.add(id);
+      dependents.get(dep)!.add(name);
     }
   }
 
   // ── Step 3: Kahn's topological sort ────────────────────────────────────────
   const inDeg = new Map<string, number>();
-  for (const { id } of formulaCells) inDeg.set(id, deps.get(id)?.size ?? 0);
+  for (const { name } of formulaCells) inDeg.set(name, deps.get(name)?.size ?? 0);
 
-  const queue = [...formulaIds].filter(id => (inDeg.get(id) ?? 0) === 0);
+  const queue = [...formulaNames].filter(name => (inDeg.get(name) ?? 0) === 0);
   const evalOrder: string[] = [];
 
   while (queue.length > 0) {
-    const id = queue.shift()!;
-    evalOrder.push(id);
-    for (const dep of dependents.get(id) ?? []) {
+    const name = queue.shift()!;
+    evalOrder.push(name);
+    for (const dep of dependents.get(name) ?? []) {
       const nd = (inDeg.get(dep) ?? 1) - 1;
       inDeg.set(dep, nd);
       if (nd === 0) queue.push(dep);
@@ -585,28 +663,37 @@ export const recalculateTable = (table: Table): Table => {
   }
 
   // Any formula cell not in evalOrder participates in a cycle
-  const cyclicIds = new Set([...formulaIds].filter(id => !evalOrder.includes(id)));
+  const cyclicNames = new Set([...formulaNames].filter(name => !evalOrder.includes(name)));
 
   // ── Step 4: evaluate in topological order, updating valueMap ───────────────
-  for (const id of evalOrder) {
-    const formula = formulaCells.find(f => f.id === id)!.formula;
-    const result = evaluateFormula(formula, id, valueMap);
-    valueMap[id] = result;
+  for (const name of evalOrder) {
+    const cellData = formulaCells.find(f => f.name === name)!;
+    const result = evaluateFormula(cellData.formula, name, valueMap);
+    valueMap[name] = result;
   }
-  for (const id of cyclicIds) {
-    valueMap[id] = '#CIRCULAR';
+  for (const name of cyclicNames) {
+    valueMap[name] = '#CIRCULAR';
   }
 
   // ── Step 5: rebuild the table tree with updated values ─────────────────────
+  // Need to map back using the UUID because the table mapper walks the structure,
+  // but valueMap is keyed by visual names.
+  // We can build a fast mapping of UUID -> visual name.
+  const idToName = new Map<string, string>();
+  for (const f of formulaCells) idToName.set(f.id, f.name);
+
   const applyValues = (t: Table): Table => ({
     ...t,
     rows: t.rows.map(row => ({
       ...row,
       cells: row.cells.map(cell => {
         if (cell.text.startsWith('=')) {
+          // It's a formula, look up the name to get the evaluated value
+          const visualName = idToName.get(cell.id);
+          const computedValue = visualName ? valueMap[visualName] : '#ERROR';
           return {
             ...cell,
-            value: valueMap[cell.id] ?? '#ERROR',
+            value: computedValue ?? '#ERROR',
             className: setCellTypeClass(cell.className || '', 'formula'),
             table: cell.table ? applyValues(cell.table) : undefined,
           };

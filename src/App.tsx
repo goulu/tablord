@@ -4,7 +4,7 @@ import type { Table as TableType } from './types/document';
 import { 
   handleTab, handleEnter, handleCtrlTab, handleArrow, 
   getCellType, setCellTypeClass, evaluateFormula, recalculateTable, buildValueMap,
-  deleteRow, deleteColumn, deleteTable 
+  deleteRow, deleteColumn, deleteTable, getCellNameById
 } from './utils/tableUtils';
 import { parseHtmlToTable } from './utils/htmlUtils';
 import { TopBar } from './components/TopBar';
@@ -23,7 +23,8 @@ const updateCellText = (table: TableType, cellId: string, newText: string): Tabl
         if (cell.id === cellId) {
           // Detect formula — always keep class as 'formula'
           if (newText.startsWith('=')) {
-            const evaluated = evaluateFormula(newText, cell.id, valueMap);
+            const visualName = getCellNameById(table, cellId) || '';
+            const evaluated = evaluateFormula(newText, visualName, valueMap);
             return { ...cell, text: newText, value: evaluated, className: setCellTypeClass(cell.className, 'formula') };
           }
           // Auto-detect number
@@ -61,7 +62,8 @@ const updateCellTypeInTree = (table: TableType, cellId: string, newType: 'text' 
           let newValue = cell.value;
           if (newType === 'formula' && !newText.startsWith('=')) {
              newText = '=' + newText;
-             newValue = evaluateFormula(newText);
+             const visualName = getCellNameById(table, cellId) || '';
+             newValue = evaluateFormula(newText, visualName, buildValueMap(table));
           } else if (newType !== 'formula' && newText.startsWith('=')) {
              newValue = undefined;
           }
@@ -151,7 +153,6 @@ function App() {
         span.parentNode?.replaceChild(document.createTextNode(span.textContent || ''), span);
       });
       clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
-      clone.querySelectorAll('[data-cell-id]').forEach(el => el.removeAttribute('data-cell-id'));
 
       const htmlToSave = clone.innerHTML;
 
@@ -246,15 +247,21 @@ function App() {
   const activeCellProps = activeCellId ? findActiveCell(documentTable, activeCellId) : null;
   const activeCellType = getCellType(activeCellProps?.className);
   const isEditingFormula = (activeCellProps?.text ?? '').startsWith('=');
+  
+  const activeCellName = activeCellId ? getCellNameById(documentTable, activeCellId) : null;
 
   const handleCellRefClick = useCallback((clickedCellId: string) => {
     if (!activeCellId) return;
     const activeTd = document.querySelector(`[data-cell-id="${activeCellId}"]`) as HTMLElement | null;
     if (!activeTd) return;
 
+    // Convert the UUID to its visual representation (e.g. B.3)
+    const visualName = getCellNameById(documentTable, clickedCellId);
+    if (!visualName) return;
+
     // Relative: "B.3"  |  Absolute: "$B.$3"
-    const relRef = clickedCellId;
-    const absRef = clickedCellId
+    const relRef = visualName;
+    const absRef = visualName
       .replace(/([A-Z]+)\./g, '$$$1.')  // B. → $B.   ('$$$1' = literal$ + capture group 1)
       .replace(/\.(\d+)/g, '.$$$1');   // .3 → .$3   ('.$$$1' = .$ + capture group 1)
 
@@ -345,7 +352,7 @@ function App() {
       tabIndex={0}
     >
       <TopBar 
-        activeCellId={activeCellId} 
+        activeCellName={activeCellName} 
         activeCellType={activeCellType}
         onCellTypeChange={handleCellTypeChange}
         onHelpClick={() => setShowHelp(true)} 
@@ -371,7 +378,7 @@ function App() {
         >
           <div onClick={() => handleDeleteMenuAction('row')}>Supprimer la ligne</div>
           <div onClick={() => handleDeleteMenuAction('column')}>Supprimer la colonne</div>
-          {contextMenu.cellId !== 'A.1' && (
+          {getCellNameById(documentTable, contextMenu.cellId) !== 'A.1' && (
             <div onClick={() => handleDeleteMenuAction('table')}>Supprimer la table</div>
           )}
         </div>

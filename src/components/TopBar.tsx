@@ -1,14 +1,14 @@
 import React from 'react';
 
 interface TopBarProps {
-  activeCellId: string | null;
+  activeCellName: string | null;
   activeCellType: 'text' | 'number' | 'formula' | undefined;
   onHelpClick: () => void;
   onCellTypeChange: (type: 'text' | 'number' | 'formula') => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({ 
-  activeCellId, 
+  activeCellName, 
   activeCellType,
   onHelpClick, 
   onCellTypeChange 
@@ -29,9 +29,9 @@ export const TopBar: React.FC<TopBarProps> = ({
       </div>
       <div style={{ display: 'flex', alignItems: 'center' }}>
         <span style={{ marginRight: '10px' }}>
-          {activeCellId ? `${activeCellId}` : 'Ready'}
+          {activeCellName ? `${activeCellName}` : 'Ready'}
         </span>
-        {activeCellId && (
+        {activeCellName && (
           <select 
             value={activeCellType || 'text'} 
             onChange={(e) => onCellTypeChange(e.target.value as any)}

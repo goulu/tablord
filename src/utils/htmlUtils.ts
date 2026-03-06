@@ -1,4 +1,5 @@
 import type { Table, Row, Cell } from '../types/document';
+import { generateId } from '../types/document';
 
 // Parse HTML string back to TableType
 export const parseHtmlToTable = (htmlString: string): Table | null => {
@@ -18,21 +19,18 @@ export const parseHtmlToTable = (htmlString: string): Table | null => {
        columns.push(String.fromCharCode(65 + i)); // A, B, C...
     }
 
-    const isRoot = tableId === 'document';
-    const prefix = isRoot ? '' : tableId + '.';
-
-    trElements.forEach((tr, rIdx) => {
-      const rowId = (rIdx + 1).toString();
-      const cells: Cell[] = Array.from(tr.children).map((tdEl, cIdx) => {
+    trElements.forEach((tr) => {
+      const rowId = generateId();
+      const cells: Cell[] = Array.from(tr.children).map((tdEl) => {
         const td = tdEl as HTMLTableCellElement;
-        const cellId = `${prefix}${columns[cIdx]}.${rowId}`;
+        const cellId = generateId();
         
         // Find if there's a nested table
         const nestedTableEl = td.querySelector(':scope > div.document > table, :scope > table');
         let nestedTable: Table | undefined = undefined;
         if (nestedTableEl) {
-           // Sub-table is named after the parent cell
-           nestedTable = parseTable(nestedTableEl as HTMLTableElement, cellId);
+           // Sub-table is named using a new UUID
+           nestedTable = parseTable(nestedTableEl as HTMLTableElement, generateId());
         }
 
         // Extract direct text: clone td, remove nested divs/tables, get textContent
