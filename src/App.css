@@ -22,3 +22,12 @@
 .document td.formula:not(.selected) {
   text-align: right;
 }
+
+/* Visual hint: cells become clickable insert targets while editing a formula */
+.document td.formula-ref-target {
+  cursor: crosshair;
+  outline: 1px dashed #88aaff;
+}
+.document td.formula-ref-target:hover {
+  background-color: #eef4ff;
+}

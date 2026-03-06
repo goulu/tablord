@@ -215,6 +215,10 @@ function App() {
     setActiveCellId(cellId);
   };
 
+  // Track last-inserted cell reference during formula editing (for cycling rel→abs→remove)
+  const formulaRefStateRef = useRef<{ cellId: string; refText: string } | null>(null);
+  useEffect(() => { formulaRefStateRef.current = null; }, [activeCellId]);
+
   const handleCellTypeChange = (newType: 'text' | 'number' | 'formula') => {
     if (activeCellId) {
       setDocumentTable(prev => updateCellTypeInTree(prev, activeCellId, newType));
@@ -223,7 +227,54 @@ function App() {
 
   const activeCellProps = activeCellId ? findActiveCell(documentTable, activeCellId) : null;
   const activeCellType = getCellType(activeCellProps?.className);
+  const isEditingFormula = (activeCellProps?.text ?? '').startsWith('=');
 
+  const handleCellRefClick = useCallback((clickedCellId: string) => {
+    if (!activeCellId) return;
+    const activeTd = document.querySelector(`[data-cell-id="${activeCellId}"]`) as HTMLElement | null;
+    if (!activeTd) return;
+
+    // Relative form: "B.3"  |  Absolute form: "$B.$3"
+    const relRef = clickedCellId;
+    const absRef = clickedCellId
+      .replace(/([A-Z]+)\./g, '$$$1.')
+      .replace(/\.(\d+)/g, '.$$$$1');
+
+    const lastRef = formulaRefStateRef.current;
+
+    if (lastRef && lastRef.cellId === clickedCellId) {
+      const currentText = activeTd.textContent || '';
+      if (lastRef.refText === relRef) {
+        // Cycle relative → absolute
+        const idx = currentText.lastIndexOf(relRef);
+        if (idx >= 0) {
+          const newText = currentText.slice(0, idx) + absRef + currentText.slice(idx + relRef.length);
+          activeTd.textContent = newText;
+          formulaRefStateRef.current = { cellId: clickedCellId, refText: absRef };
+          setDocumentTable(prev => updateCellText(prev, activeCellId, newText));
+        }
+      } else {
+        // Cycle absolute → remove
+        const idx = currentText.lastIndexOf(lastRef.refText);
+        if (idx >= 0) {
+          const newText = currentText.slice(0, idx) + currentText.slice(idx + lastRef.refText.length);
+          activeTd.textContent = newText;
+          formulaRefStateRef.current = null;
+          setDocumentTable(prev => updateCellText(prev, activeCellId, newText));
+        }
+      }
+    } else {
+      // Insert relative ref at cursor; execCommand preserves cursor position
+      const inserted = document.execCommand('insertText', false, relRef);
+      if (!inserted) {
+        const newText = (activeTd.textContent || '') + relRef;
+        activeTd.textContent = newText;
+        setDocumentTable(prev => updateCellText(prev, activeCellId, newText));
+      }
+      formulaRefStateRef.current = { cellId: clickedCellId, refText: relRef };
+    }
+    activeTd.focus();
+  }, [activeCellId]);
 
   return (
     <div 
@@ -245,6 +296,8 @@ function App() {
           activeCellId={activeCellId} 
           onCellClick={handleCellClick}
           onCellInput={(cellId, newText) => setDocumentTable(prev => updateCellText(prev, cellId, newText))}
+          isEditingFormula={isEditingFormula}
+          onCellRefClick={handleCellRefClick}
         />
       </div>
 

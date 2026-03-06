@@ -7,6 +7,8 @@ interface TableProps {
   activeCellId: string | null;
   onCellClick: (cellId: string) => void;
   onCellInput: (cellId: string, text: string) => void;
+  isEditingFormula?: boolean;
+  onCellRefClick?: (cellId: string) => void;
   depth?: number;
 }
 
@@ -18,29 +20,27 @@ interface TableProps {
 interface EditableCellProps {
   cell: Cell;
   isActive: boolean;
+  isEditingFormula: boolean;
   onCellClick: (id: string) => void;
   onCellInput: (id: string, text: string) => void;
+  onCellRefClick?: (cellId: string) => void;
   children?: React.ReactNode; // nested Table for cells with sub-tables
 }
 
-const EditableCell = memo(({ cell, isActive, onCellClick, onCellInput, children }: EditableCellProps) => {
+const EditableCell = memo(({ cell, isActive, isEditingFormula, onCellClick, onCellInput, onCellRefClick, children }: EditableCellProps) => {
   const tdRef = useRef<HTMLTableCellElement>(null);
   const originalTextRef = useRef<string>(''); // captured on activation
 
   // When this cell becomes the active one: set DOM text and move cursor to end.
-  // We use useLayoutEffect so it fires before the browser paints, avoiding flash.
   useLayoutEffect(() => {
     const td = tdRef.current;
     if (!td) return;
     if (isActive && !cell.table) {
-      // Remember where we started so Escape can restore it
       originalTextRef.current = cell.value ?? cell.text;
-      // Set the formula (or plain text) so the user can edit it
       const formulaOrText = cell.text;
       if (td.textContent !== formulaOrText) {
         td.textContent = formulaOrText;
       }
-      // Place cursor at end
       if (typeof window.getSelection !== 'undefined' && typeof document.createRange !== 'undefined') {
         const range = document.createRange();
         range.selectNodeContents(td);
@@ -51,13 +51,9 @@ const EditableCell = memo(({ cell, isActive, onCellClick, onCellInput, children 
       }
       td.focus();
     }
-  // Only re-run when the active cell changes identity — not when text changes —
-  // so React never overwrites the user's in-progress edits.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, cell.id]);
 
-  // When a formula cell's evaluated value changes (e.g. after losing focus and
-  // re-entering), update the DOM if we are NOT currently editing.
   useEffect(() => {
     const td = tdRef.current;
     if (td && !isActive) {
@@ -73,13 +69,11 @@ const EditableCell = memo(({ cell, isActive, onCellClick, onCellInput, children 
   return (
     <td
       ref={tdRef}
-      className={`${isActive ? 'selected ' : ''}${cell.className || 'text'}`}
+      className={`${isActive ? 'selected ' : ''}${cell.className || 'text'}${!isActive && isEditingFormula ? ' formula-ref-target' : ''}`}
       contentEditable={isActive && !cell.table}
       suppressContentEditableWarning
       data-cell-id={cell.id}
       data-formula={cell.text.startsWith('=') ? cell.text : undefined}
-      // For cells without sub-tables, the DOM text is managed via refs above.
-      // For cells WITH sub-tables, we render the children normally (no editable text).
       dangerouslySetInnerHTML={
         !cell.table && !isActive
           ? { __html: displayText }
@@ -90,15 +84,19 @@ const EditableCell = memo(({ cell, isActive, onCellClick, onCellInput, children 
           onCellInput(cell.id, e.currentTarget.textContent || '');
         }
       }}
+      onMouseDown={(e) => {
+        // While editing a formula, prevent other cells from stealing focus
+        if (isEditingFormula && !isActive) {
+          e.preventDefault();
+        }
+      }}
       onKeyDown={(e) => {
         if (e.key === 'Escape') {
           e.preventDefault();
           e.stopPropagation();
-          // Restore original text but keep focus
           const td = tdRef.current;
           if (td) {
             td.textContent = originalTextRef.current;
-            // Move cursor to end
             if (typeof window.getSelection !== 'undefined' && typeof document.createRange !== 'undefined') {
               const range = document.createRange();
               range.selectNodeContents(td);
@@ -108,7 +106,7 @@ const EditableCell = memo(({ cell, isActive, onCellClick, onCellInput, children 
               sel?.addRange(range);
             }
           }
-          onCellInput(cell.id, cell.text); // keep state unchanged
+          onCellInput(cell.id, cell.text);
           return;
         }
         if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
@@ -127,10 +125,14 @@ const EditableCell = memo(({ cell, isActive, onCellClick, onCellInput, children 
       }}
       onClick={(e) => {
         e.stopPropagation();
+        // While editing a formula, clicking a non-active cell inserts/cycles a reference
+        if (isEditingFormula && !isActive) {
+          onCellRefClick?.(cell.id);
+          return; // don't switch active cell
+        }
         onCellClick(cell.id);
       }}
     >
-      {/* Sub-table is only rendered as React children (not via dangerouslySetInnerHTML) */}
       {cell.table && children}
     </td>
   );
@@ -140,7 +142,11 @@ EditableCell.displayName = 'EditableCell';
 // ──────────────────────────────────────────────
 // Table: recursive component
 // ──────────────────────────────────────────────
-export const Table: React.FC<TableProps> = ({ table, activeCellId, onCellClick, onCellInput, depth = 0 }) => {
+export const Table: React.FC<TableProps> = ({
+  table, activeCellId, onCellClick, onCellInput,
+  isEditingFormula = false, onCellRefClick,
+  depth = 0
+}) => {
   const isInnermostSelectedTable = table.rows.some(row =>
     row.cells.some(cell => cell.id === activeCellId)
   );
@@ -158,8 +164,10 @@ export const Table: React.FC<TableProps> = ({ table, activeCellId, onCellClick, 
                     key={cell.id}
                     cell={cell}
                     isActive={isActive}
+                    isEditingFormula={isEditingFormula}
                     onCellClick={onCellClick}
                     onCellInput={onCellInput}
+                    onCellRefClick={onCellRefClick}
                   >
                     {cell.table && (
                       <Table
@@ -167,6 +175,8 @@ export const Table: React.FC<TableProps> = ({ table, activeCellId, onCellClick, 
                         activeCellId={activeCellId}
                         onCellClick={onCellClick}
                         onCellInput={onCellInput}
+                        isEditingFormula={isEditingFormula}
+                        onCellRefClick={onCellRefClick}
                         depth={depth + 1}
                       />
                     )}
