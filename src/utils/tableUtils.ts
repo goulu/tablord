@@ -459,6 +459,43 @@ export const preprocessCellRefs = (formula: string, currentCellId = ''): string 
   return processed.replace(/__S(\d+)__/g, (_, i) => strings[parseInt(i, 10)]);
 };
 
+/**
+ * Increments the row number of relative cell references in a formula by a given offset.
+ * E.g. A.1 -> A.2, .A.1 -> .A.2. Absolute references like $A.$1 or A.$1 are unaffected.
+ */
+export const offsetFormulaRows = (formula: string, rowOffset: number): string => {
+  const strings: string[] = [];
+  // Protect quoted strings
+  let processed = formula.replace(/"[^"]*"/g, (match) => {
+    strings.push(match);
+    return `__S${strings.length - 1}__`;
+  });
+
+  // Regex to find cell references. A cell ref ends with .[digits] or .$[digits]
+  // We want to match: (prefix)\.(rowNum)
+  // The prefix can be complex: A, .A, B.3.A, $B.3.$A, etc.
+  // We'll just look for: (\.[A-Z]+)\.(\d+) or (^|[^\w\.])([A-Z]+)\.(\d+)
+  // Actually, a safer way is to match the Col.Row pattern specifically:
+  // (.*?)([A-Z]+)\.(\$?)(\d+)
+  
+  // Note: the `matchAll` process from preprocessCellRefs is:
+  // \$?[A-Z]+\.\$?\d+(?:\.\$?[A-Z]+\.\$?\d+)*
+  // It's easier to find the final \.(\$?)(\d+) of any sequence of uppercase letters and dots.
+  
+  // To avoid altering numbers that just happen to follow a dot (like 3.14),
+  // we look for an uppercase letter, then a dot, then optionally a $, then digits.
+  processed = processed.replace(/([A-Z]+)\.(\$?)(\d+)/g, (match, colPart, dollarSign, rowStr) => {
+    if (dollarSign === '$') {
+      return match; // Absolute row, do not change
+    }
+    const rowNum = parseInt(rowStr, 10);
+    return `${colPart}.${rowNum + rowOffset}`;
+  });
+
+  // Restore strings
+  return processed.replace(/__S(\d+)__/g, (_, i) => strings[parseInt(i, 10)]);
+};
+
 /** Build a flat map of cellId → current display value for the whole table tree */
 export const buildValueMap = (table: Table): Record<string, string> => {
   const map: Record<string, string> = {};
