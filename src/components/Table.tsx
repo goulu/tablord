@@ -9,6 +9,7 @@ interface TableProps {
   onCellInput: (cellId: string, text: string) => void;
   isEditingFormula?: boolean;
   onCellRefClick?: (cellId: string) => void;
+  onCellContextMenu?: (e: React.MouseEvent, cellId: string) => void;
   depth?: number;
 }
 
@@ -24,10 +25,11 @@ interface EditableCellProps {
   onCellClick: (id: string) => void;
   onCellInput: (id: string, text: string) => void;
   onCellRefClick?: (cellId: string) => void;
+  onCellContextMenu?: (e: React.MouseEvent, cellId: string) => void;
   children?: React.ReactNode; // nested Table for cells with sub-tables
 }
 
-const EditableCell = memo(({ cell, isActive, isEditingFormula, onCellClick, onCellInput, onCellRefClick, children }: EditableCellProps) => {
+const EditableCell = memo(({ cell, isActive, isEditingFormula, onCellClick, onCellInput, onCellRefClick, onCellContextMenu, children }: EditableCellProps) => {
   const tdRef = useRef<HTMLTableCellElement>(null);
   const originalTextRef = useRef<string>(''); // captured on activation
 
@@ -132,6 +134,9 @@ const EditableCell = memo(({ cell, isActive, isEditingFormula, onCellClick, onCe
         }
         onCellClick(cell.id);
       }}
+      onContextMenu={(e) => {
+        onCellContextMenu?.(e, cell.id);
+      }}
     >
       {cell.table && children}
     </td>
@@ -144,7 +149,7 @@ EditableCell.displayName = 'EditableCell';
 // ──────────────────────────────────────────────
 export const Table: React.FC<TableProps> = ({
   table, activeCellId, onCellClick, onCellInput,
-  isEditingFormula = false, onCellRefClick,
+  isEditingFormula = false, onCellRefClick, onCellContextMenu,
   depth = 0
 }) => {
   const isInnermostSelectedTable = table.rows.some(row =>
@@ -168,6 +173,7 @@ export const Table: React.FC<TableProps> = ({
                     onCellClick={onCellClick}
                     onCellInput={onCellInput}
                     onCellRefClick={onCellRefClick}
+                    onCellContextMenu={onCellContextMenu}
                   >
                     {cell.table && (
                       <Table
@@ -177,6 +183,7 @@ export const Table: React.FC<TableProps> = ({
                         onCellInput={onCellInput}
                         isEditingFormula={isEditingFormula}
                         onCellRefClick={onCellRefClick}
+                        onCellContextMenu={onCellContextMenu}
                         depth={depth + 1}
                       />
                     )}

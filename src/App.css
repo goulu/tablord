@@ -31,3 +31,25 @@
 .document td.formula-ref-target:hover {
   background-color: #eef4ff;
 }
+
+.context-menu {
+  position: fixed;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  border-radius: 4px;
+  padding: 4px 0;
+  min-width: 150px;
+  z-index: 1000;
+}
+
+.context-menu > div {
+  padding: 8px 16px;
+  cursor: pointer;
+  color: #eee;
+  font-size: 14px;
+}
+
+.context-menu > div:hover {
+  background: #3a3a3a;
+}

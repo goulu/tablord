@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { initialDocument } from './types/document';
 import type { Table as TableType } from './types/document';
-import { handleTab, handleEnter, handleCtrlTab, handleArrow, getCellType, setCellTypeClass, evaluateFormula, recalculateTable, buildValueMap } from './utils/tableUtils';
+import { 
+  handleTab, handleEnter, handleCtrlTab, handleArrow, 
+  getCellType, setCellTypeClass, evaluateFormula, recalculateTable, buildValueMap,
+  deleteRow, deleteColumn, deleteTable 
+} from './utils/tableUtils';
 import { parseHtmlToTable } from './utils/htmlUtils';
 import { TopBar } from './components/TopBar';
 import { Table } from './components/Table';
@@ -102,6 +106,7 @@ function App() {
   const [documentTable, setDocumentTable] = useState<TableType>(initialDocument);
   const [activeCellId, setActiveCellId] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, cellId: string } | null>(null);
 
   const tableRef = useRef(documentTable);
   const activeCellRef = useRef(activeCellId);
@@ -307,10 +312,35 @@ function App() {
     activeTd.focus();
   }, [activeCellId]);
 
+  const handleCellContextMenu = useCallback((e: React.MouseEvent, cellId: string) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, cellId });
+  }, []);
+
+  const closeContextMenu = () => {
+    if (contextMenu) setContextMenu(null);
+  };
+
+  const handleDeleteMenuAction = (action: 'row' | 'column' | 'table') => {
+    if (!contextMenu) return;
+    const { cellId } = contextMenu;
+    setDocumentTable(prev => {
+      let newTable = prev;
+      if (action === 'row') newTable = deleteRow(newTable, cellId);
+      if (action === 'column') newTable = deleteColumn(newTable, cellId);
+      if (action === 'table') newTable = deleteTable(newTable, cellId);
+      return recalculateTable(newTable);
+    });
+    setContextMenu(null);
+  };
+
   return (
     <div 
       style={{ height: '100vh', display: 'flex', flexDirection: 'column', outline: 'none' }} 
-      onClick={() => setActiveCellId(null)}
+      onClick={() => {
+        setActiveCellId(null);
+        closeContextMenu();
+      }}
       onKeyDown={handleKeyDown}
       tabIndex={0}
     >
@@ -329,8 +359,23 @@ function App() {
           onCellInput={(cellId, newText) => setDocumentTable(prev => updateCellText(prev, cellId, newText))}
           isEditingFormula={isEditingFormula}
           onCellRefClick={handleCellRefClick}
+          onCellContextMenu={handleCellContextMenu}
         />
       </div>
+
+      {contextMenu && (
+        <div 
+          className="context-menu"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          onClick={(e) => e.stopPropagation()} // don't close immediately when clicking inside
+        >
+          <div onClick={() => handleDeleteMenuAction('row')}>Supprimer la ligne</div>
+          <div onClick={() => handleDeleteMenuAction('column')}>Supprimer la colonne</div>
+          {contextMenu.cellId !== 'A.1' && (
+            <div onClick={() => handleDeleteMenuAction('table')}>Supprimer la table</div>
+          )}
+        </div>
+      )}
 
       {showHelp && <HelpPopup onClose={() => setShowHelp(false)} />}
     </div>
