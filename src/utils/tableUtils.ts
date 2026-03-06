@@ -448,7 +448,9 @@ export const preprocessCellRefs = (formula: string, currentCellId = ''): string 
 
   // 2. Full chained (or simple) refs: A.1, B.3.A.2, $C.$3, $B.3.$A.$2 …
   //    Greedy multi-segment match: ColLetter.RowNum (. ColLetter.RowNum)*
-  processed = processed.replace(/\$?[A-Z]+\.\$?\d+(?:\.\$?[A-Z]+\.\$?\d+)*/g, (match) => {
+  //    We add negative lookbehind (?<!REF\("|[A-Z0-9\.]) to avoid double-replacing refs already processed in step 1,
+  //    or matching inside larger identifiers.
+  processed = processed.replace(/(?<!REF\("|[A-Z0-9\.])\$?[A-Z]+\.\$?\d+(?:\.\$?[A-Z]+\.\$?\d+)*/g, (match) => {
     const cellId = match.replace(/\$/g, '');
     return `REF("${cellId}")`;
   });
