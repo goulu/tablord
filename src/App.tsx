@@ -4,7 +4,8 @@ import type { Table as TableType } from './types/document';
 import { 
   handleTab, handleEnter, handleCtrlTab, handleArrow, 
   getCellType, setCellTypeClass, evaluateFormula, recalculateTable, buildValueMap,
-  deleteRow, deleteColumn, deleteTable, getCellNameById, insertSubTableAtCell
+  deleteRow, deleteColumn, deleteTable, getCellNameById, insertSubTableAtCell,
+  adjustFormulasAfterStructureChange
 } from './utils/tableUtils';
 import { parseHtmlToTable } from './utils/htmlUtils';
 import { availableImporters } from './import';
@@ -197,7 +198,8 @@ function App() {
           setActiveCellId(newActiveCellId);
         } else {
           const { newTable, newActiveCellId } = handleTab(currentTable, currentActiveCellId);
-          setDocumentTable(newTable);
+          const adjusted = adjustFormulasAfterStructureChange(currentTable, newTable);
+          setDocumentTable(recalculateTable(adjusted));
           setActiveCellId(newActiveCellId);
         }
         return;
@@ -216,7 +218,8 @@ function App() {
           }
         }
         const { newTable, newActiveCellId } = handleEnter(latestTable, currentActiveCellId!);
-        setDocumentTable(recalculateTable(newTable));
+        const adjusted = adjustFormulasAfterStructureChange(latestTable, newTable);
+        setDocumentTable(recalculateTable(adjusted));
         setActiveCellId(newActiveCellId);
         return;
       }
@@ -349,7 +352,8 @@ function App() {
       if (action === 'row') newTable = deleteRow(newTable, cellId);
       if (action === 'column') newTable = deleteColumn(newTable, cellId);
       if (action === 'table') newTable = deleteTable(newTable, cellId);
-      return recalculateTable(newTable);
+      const adjusted = adjustFormulasAfterStructureChange(prev, newTable);
+      return recalculateTable(adjusted);
     });
     setContextMenu(null);
   };

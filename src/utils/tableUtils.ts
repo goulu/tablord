@@ -333,8 +333,7 @@ export const deleteColumn = (table: Table, cellId: string): Table => {
     if (targetRow) {
       const targetColIdx = targetRow.cells.findIndex(c => c.id === cellId);
       if (t.columns.length <= 1) return t; // Don't delete last column
-      const newCols = [...t.columns];
-      newCols.splice(targetColIdx, 1);
+      const newCols = t.columns.slice(0, t.columns.length - 1).map((_, i) => convertNumberToCol(i + 1));
       const newRows = t.rows.map(r => {
         const newCells = [...r.cells];
         newCells.splice(targetColIdx, 1);
@@ -818,4 +817,242 @@ export const insertSubTableAtCell = (table: Table, targetCellId: string, subTabl
 
   return traverse(table);
 };
+
+/**
+ * Adjusts all formula references in a table after a structural change (row/col addition or deletion),
+ * ensuring formulas continue pointing to the same target cells (UUIDs) as before the change.
+ */
+export const adjustFormulasAfterStructureChange = (
+  oldTable: Table,
+  newTable: Table,
+  changeInfo?: { type: 'insertRow' | 'deleteRow' | 'insertCol' | 'deleteCol'; index: number }
+): Table => {
+  // Step 1: Map old visual names <-> cell IDs
+  const oldIdToName = new Map<string, string>();
+  const oldNameToId = new Map<string, string>();
+
+  const walkOld = (t: Table, prefix: string) => {
+    t.rows.forEach((row, rIdx) => {
+      row.cells.forEach((cell, cIdx) => {
+        const colName = t.columns[cIdx];
+        const visualName = `${prefix}${colName}.${rIdx + 1}`;
+        oldIdToName.set(cell.id, visualName);
+        oldNameToId.set(visualName, cell.id);
+        if (cell.table) walkOld(cell.table, `${visualName}.`);
+      });
+    });
+  };
+  walkOld(oldTable, '');
+
+  // Step 2: Map new cell IDs <-> new visual names
+  const newIdToName = new Map<string, string>();
+  const newNameToId = new Map<string, string>();
+
+  const walkNew = (t: Table, prefix: string) => {
+    t.rows.forEach((row, rIdx) => {
+      row.cells.forEach((cell, cIdx) => {
+        const colName = t.columns[cIdx];
+        const visualName = `${prefix}${colName}.${rIdx + 1}`;
+        newIdToName.set(cell.id, visualName);
+        newNameToId.set(visualName, cell.id);
+        if (cell.table) walkNew(cell.table, `${visualName}.`);
+      });
+    });
+  };
+  walkNew(newTable, '');
+
+  // Auto-detect operation type and 0-based index if changeInfo not provided
+  let changeType = changeInfo?.type;
+  let changeIndex = changeInfo?.index ?? -1;
+
+  if (!changeType) {
+    if (newTable.rows.length === oldTable.rows.length + 1) {
+      changeType = 'insertRow';
+      changeIndex = newTable.rows.findIndex(r => r.cells[0] && !oldIdToName.has(r.cells[0].id));
+    } else if (newTable.rows.length === oldTable.rows.length - 1) {
+      changeType = 'deleteRow';
+      changeIndex = oldTable.rows.findIndex(r => r.cells[0] && !newIdToName.has(r.cells[0].id));
+    } else if (newTable.columns.length === oldTable.columns.length + 1) {
+      changeType = 'insertCol';
+      changeIndex = newTable.columns.length - 1;
+    } else if (newTable.columns.length === oldTable.columns.length - 1) {
+      changeType = 'deleteCol';
+      if (oldTable.rows[0]) {
+        changeIndex = oldTable.rows[0].cells.findIndex(c => !newIdToName.has(c.id));
+      }
+    }
+  }
+
+  // Helper to rewrite a single reference token (e.g. "A.1", "$A.$1", ".A.1", "B.3.A.1")
+  const replaceRefToken = (refStr: string, formulaCellId: string): string => {
+    const isLocal = refStr.startsWith('.');
+    const rawRef = isLocal ? refStr.slice(1) : refStr;
+    const cleanVisualName = rawRef.replace(/\$/g, '');
+
+    const formulaOldName = oldIdToName.get(formulaCellId) || '';
+    const formulaNewName = newIdToName.get(formulaCellId) || '';
+
+    let targetOldVisual = cleanVisualName;
+    if (isLocal) {
+      const match = formulaOldName.match(/^(.*\.)?[A-Z]+\.\d+$/);
+      const tablePrefix = match ? match[1] || '' : '';
+      targetOldVisual = tablePrefix ? `${tablePrefix}${cleanVisualName}` : cleanVisualName;
+    }
+
+    const targetCellId = oldNameToId.get(targetOldVisual);
+    if (!targetCellId) {
+      return refStr; // Ref didn't resolve to a cell before
+    }
+
+    const targetNewVisual = newIdToName.get(targetCellId);
+    if (!targetNewVisual) {
+      return '#REF!'; // Target cell was deleted
+    }
+
+    let newCleanRef = targetNewVisual;
+    if (isLocal) {
+      const match = formulaNewName.match(/^(.*\.)?[A-Z]+\.\d+$/);
+      const newTablePrefix = match ? match[1] || '' : '';
+      if (newCleanRef.startsWith(newTablePrefix)) {
+        newCleanRef = '.' + newCleanRef.slice(newTablePrefix.length);
+      }
+    }
+
+    // Re-apply $ signs from original reference
+    const origSegments = refStr.split('.');
+    const newSegments = newCleanRef.split('.');
+    if (origSegments.length === newSegments.length) {
+      const resSegments = newSegments.map((newSeg, idx) => {
+        const origSeg = origSegments[idx];
+        const hasColDollar = origSeg.startsWith('$') || origSeg.includes('.$');
+        const origRowMatch = origSeg.match(/([A-Z]+)(\$?)(\d+)/);
+        const newRowMatch = newSeg.match(/([A-Z]+)(\d+)/);
+        if (origRowMatch && newRowMatch) {
+          const colDollar = hasColDollar ? '$' : '';
+          const rowDollar = origRowMatch[2] === '$' ? '$' : '';
+          return `${colDollar}${newRowMatch[1]}.${rowDollar}${newRowMatch[2]}`;
+        }
+        return hasColDollar ? `$${newSeg}` : newSeg;
+      });
+      return resSegments.join('.');
+    }
+
+    return newCleanRef;
+  };
+
+  // Helper to adjust range references inside SUM("A.1", "A.5") per Excel range rules
+  const rewriteRangeReference = (startRef: string, endRef: string, formulaCellId: string): string => {
+    const sClean = startRef.replace(/["\$]/g, '');
+    const eClean = endRef.replace(/["\$]/g, '');
+
+    const parseCell = (addr: string) => {
+      const match = addr.match(/^(.*\.)?([A-Z]+)\.(\d+)$/);
+      if (!match) return null;
+      return { prefix: match[1] || '', col: match[2], row: parseInt(match[3], 10) };
+    };
+
+    const s = parseCell(sClean);
+    const e = parseCell(eClean);
+
+    if (s && e && s.prefix === e.prefix && s.col === e.col) {
+      const col = s.col;
+      const prefix = s.prefix;
+      const minRow = Math.min(s.row, e.row);
+      const maxRow = Math.max(s.row, e.row);
+
+      if (changeType === 'insertRow' && changeIndex !== -1) {
+        const insertedRow = changeIndex + 1; // 1-indexed
+
+        if (minRow < insertedRow && insertedRow <= maxRow) {
+          // Inserting Inside Range: range expands automatically
+          const newStart = replaceRefToken(startRef, formulaCellId);
+          const newEnd = `${prefix}${col}.${maxRow + 1}`;
+          if (newStart.includes('#REF!')) return 'SUM(#REF!)';
+          return `SUM("${newStart}", "${newEnd}")`;
+        } else if (insertedRow === minRow) {
+          // Inserting at Boundary Start: range does NOT expand to include new row
+          return `SUM("${sClean}", "${eClean}")`;
+        }
+      } else if (changeType === 'deleteRow' && changeIndex !== -1) {
+        const deletedRow = changeIndex + 1; // 1-indexed
+
+        if (deletedRow === minRow || deletedRow === maxRow) {
+          // Deleting Range Boundary directly -> #REF!
+          return 'SUM(#REF!)';
+        } else if (minRow < deletedRow && deletedRow < maxRow) {
+          // Deleting Inside Range: range contracts automatically
+          const newEnd = `${prefix}${col}.${maxRow - 1}`;
+          return `SUM("${sClean}", "${newEnd}")`;
+        }
+      }
+    }
+
+    // Default range handling if not special boundary case: update start and end individually
+    const newStart = replaceRefToken(startRef, formulaCellId);
+    const newEnd = replaceRefToken(endRef, formulaCellId);
+
+    if (newStart.includes('#REF!') || newEnd.includes('#REF!')) {
+      return 'SUM(#REF!)';
+    }
+    return `SUM("${newStart}", "${newEnd}")`;
+  };
+
+  // Helper to rewrite formula string for a cell
+  const rewriteFormula = (formula: string, formulaCellId: string): string => {
+    if (!formula.startsWith('=')) return formula;
+
+    const strings: string[] = [];
+    let textToProcess = formula.replace(/"([^"]*)"/g, (match) => {
+      strings.push(match);
+      return `__S${strings.length - 1}__`;
+    });
+
+    // Process SUM("start", "end") ranges
+    textToProcess = textToProcess.replace(/SUM\(\s*__S(\d+)__\s*,\s*__S(\d+)__\s*\)/ig, (match, idx1, idx2) => {
+      const sStr = strings[parseInt(idx1, 10)]?.replace(/^"|"$/g, '');
+      const eStr = strings[parseInt(idx2, 10)]?.replace(/^"|"$/g, '');
+      if (sStr && eStr && /^\$?[A-Z]+\.\$?\d+(?:\.\$?[A-Z]+\.\$?\d+)*$/.test(sStr) && /^\$?[A-Z]+\.\$?\d+(?:\.\$?[A-Z]+\.\$?\d+)*$/.test(eStr)) {
+        return rewriteRangeReference(sStr, eStr, formulaCellId);
+      }
+      return match;
+    });
+
+    // 1. Local shorthand: .A.1 or .$A.$1
+    textToProcess = textToProcess.replace(/(^|[^\d])\.(\$?[A-Z]+\.\$?\d+)/g, (_, prev, localPart) => {
+      const updated = replaceRefToken('.' + localPart, formulaCellId);
+      return `${prev}${updated}`;
+    });
+
+    // 2. Standard refs: A.1, B.3.A.1, $A.$1
+    textToProcess = textToProcess.replace(/(^|[^A-Z0-9\."])(\$?[A-Z]+\.\$?\d+(?:\.\$?[A-Z]+\.\$?\d+)*)/g, (_, prev, match) => {
+      const updated = replaceRefToken(match, formulaCellId);
+      return `${prev}${updated}`;
+    });
+
+    // Restore protected string literals
+    return textToProcess.replace(/__S(\d+)__/g, (_, idx) => strings[parseInt(idx, 10)]);
+  };
+
+  // Step 4: Traverse newTable and update all formula cell texts
+  const updateTree = (t: Table): Table => ({
+    ...t,
+    rows: t.rows.map(row => ({
+      ...row,
+      cells: row.cells.map(cell => {
+        let newText = cell.text;
+        if (cell.text.startsWith('=')) {
+          newText = rewriteFormula(cell.text, cell.id);
+        }
+        return {
+          ...cell,
+          text: newText,
+          table: cell.table ? updateTree(cell.table) : undefined,
+        };
+      }),
+    })),
+  });
+
+  return updateTree(newTable);
+};
+
 
