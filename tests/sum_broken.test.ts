@@ -1,22 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { initialDocument, type Table } from '../types/document';
-import { recalculateTable } from './tableUtils';
-
-const updateCellText = (table: Table, cellId: string, newText: string): Table => {
-  const updated = {
-    ...table,
-    rows: table.rows.map((row) => ({
-      ...row,
-      cells: row.cells.map((cell) => {
-        if (cell.id === cellId) {
-          return { ...cell, text: newText, className: newText.startsWith('=') ? 'formula' : 'number' };
-        }
-        return cell;
-      }),
-    })),
-  };
-  return recalculateTable(updated);
-};
+import { initialDocument } from '../src/types/document';
+import { recalculateTable } from '../src/utils/tableUtils';
 
 describe('SUM function bug', () => {
   it('should sum C.1 and C.3', () => {

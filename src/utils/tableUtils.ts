@@ -787,3 +787,35 @@ export const recalculateTable = (table: Table): Table => {
 
   return applyValues(table);
 };
+
+export const insertSubTableAtCell = (table: Table, targetCellId: string, subTable: Table): Table => {
+  let found = false;
+  const traverse = (t: Table): Table => {
+    let childModified = false;
+    const newRows = t.rows.map(row => {
+      let rowModified = false;
+      const newCells = row.cells.map(cell => {
+        if (cell.id === targetCellId) {
+          found = true;
+          rowModified = true;
+          return { ...cell, table: subTable };
+        }
+        if (cell.table && !found) {
+          const newSubTable = traverse(cell.table);
+          if (found && !rowModified) {
+            rowModified = true;
+            return { ...cell, table: newSubTable };
+          }
+        }
+        return cell;
+      });
+      if (rowModified) childModified = true;
+      return rowModified ? { ...row, cells: newCells } : row;
+    });
+
+    return childModified ? { ...t, rows: newRows } : t;
+  };
+
+  return traverse(table);
+};
+

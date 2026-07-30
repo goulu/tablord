@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { initialDocument } from '../types/document';
-import { handleTab, handleEnter, getCellType, setCellTypeClass, getCellNameById } from './tableUtils';
+import { initialDocument } from '../src/types/document';
+import { handleTab, handleEnter, getCellType, setCellTypeClass, getCellNameById } from '../src/utils/tableUtils';
 
 describe('Table navigation and cell typing logic', () => {
 

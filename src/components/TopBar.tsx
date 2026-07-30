@@ -1,24 +1,87 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
+import { availableImporters } from '../import';
 
 interface TopBarProps {
   activeCellName: string | null;
   activeCellType: 'text' | 'number' | 'formula' | undefined;
   onHelpClick: () => void;
   onCellTypeChange: (type: 'text' | 'number' | 'formula') => void;
+  onImportFile: (importerId: string, file: File) => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({ 
   activeCellName, 
   activeCellType,
   onHelpClick, 
-  onCellTypeChange 
+  onCellTypeChange,
+  onImportFile,
 }) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const selectedImporterIdRef = useRef<string | null>(null);
+  const [fileAccept, setFileAccept] = useState<string>('*');
+
+  const handleImportSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const importerId = e.target.value;
+    if (!importerId) return;
+
+    if (!activeCellName) {
+      alert('Veuillez d\'abord sélectionner une cellule où importer le sous-tableau.');
+      e.target.value = '';
+      return;
+    }
+
+    const importer = availableImporters.find(imp => imp.id === importerId);
+    if (importer) {
+      selectedImporterIdRef.current = importer.id;
+      setFileAccept(importer.fileExtensions.join(','));
+      // Reset input value to allow re-selecting the same file if needed
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+        fileInputRef.current.click();
+      }
+    }
+    e.target.value = '';
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const importerId = selectedImporterIdRef.current;
+    if (file && importerId) {
+      onImportFile(importerId, file);
+    }
+    selectedImporterIdRef.current = null;
+  };
+
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #ccc', padding: '10px' }}>
-      <div>
+    <div 
+      onClick={(e) => e.stopPropagation()} 
+      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #ccc', padding: '10px' }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center' }}>
         <button style={{ marginRight: '5px' }} title="Bold (placeholder)">B</button>
         <button style={{ marginRight: '5px' }} title="Italic (placeholder)">I</button>
         <button style={{ marginRight: '15px' }} title="Underline (placeholder)">U</button>
+        
+        <select 
+          defaultValue=""
+          onChange={handleImportSelect}
+          style={{ marginRight: '15px', padding: '4px', cursor: 'pointer' }}
+          title="Importer un fichier dans la cellule courante"
+        >
+          <option value="" disabled>Import...</option>
+          {availableImporters.map(imp => (
+            <option key={imp.id} value={imp.id}>{imp.name}</option>
+          ))}
+        </select>
+
+        <input 
+          type="file" 
+          ref={fileInputRef} 
+          style={{ display: 'none' }} 
+          accept={fileAccept}
+          onChange={handleFileChange}
+        />
+
         <button 
            onClick={onHelpClick}
            style={{ backgroundColor: '#e2f0ff', borderColor: '#b3d4fc', color: '#0056b3' }}

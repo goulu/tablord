@@ -58,13 +58,13 @@ const EditableCell = memo(({ cell, isActive, isEditingFormula, onCellClick, onCe
 
   useEffect(() => {
     const td = tdRef.current;
-    if (td && !isActive) {
+    if (td && !isActive && !cell.table) {
       const displayText = cell.value ?? cell.text;
       if (td.textContent !== displayText) {
         td.textContent = displayText;
       }
     }
-  }, [isActive, cell.value, cell.text]);
+  }, [isActive, cell.value, cell.text, cell.table]);
 
   const displayText = isActive ? cell.text : (cell.value ?? cell.text);
 

@@ -4,9 +4,10 @@ import type { Table as TableType } from './types/document';
 import { 
   handleTab, handleEnter, handleCtrlTab, handleArrow, 
   getCellType, setCellTypeClass, evaluateFormula, recalculateTable, buildValueMap,
-  deleteRow, deleteColumn, deleteTable, getCellNameById
+  deleteRow, deleteColumn, deleteTable, getCellNameById, insertSubTableAtCell
 } from './utils/tableUtils';
 import { parseHtmlToTable } from './utils/htmlUtils';
+import { availableImporters } from './import';
 import { TopBar } from './components/TopBar';
 import { Table } from './components/Table';
 import { HelpPopup } from './components/HelpPopup';
@@ -341,6 +342,22 @@ function App() {
     setContextMenu(null);
   };
 
+  const handleImportFile = (importerId: string, file: File) => {
+    if (!activeCellId) return;
+    const importer = availableImporters.find(imp => imp.id === importerId);
+    if (!importer) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      if (typeof content === 'string') {
+        const parsedSubTable = importer.parse(content);
+        setDocumentTable(prev => recalculateTable(insertSubTableAtCell(prev, activeCellId, parsedSubTable)));
+      }
+    };
+    reader.readAsText(file);
+  };
+
   return (
     <div 
       style={{ height: '100vh', display: 'flex', flexDirection: 'column', outline: 'none' }} 
@@ -356,6 +373,7 @@ function App() {
         activeCellType={activeCellType}
         onCellTypeChange={handleCellTypeChange}
         onHelpClick={() => setShowHelp(true)} 
+        onImportFile={handleImportFile}
       />
       
       <div style={{ flex: 1, padding: '20px', overflow: 'auto' }} ref={documentContainerRef}>
