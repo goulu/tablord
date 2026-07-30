@@ -12,6 +12,9 @@ import { availableImporters } from './import';
 import { TopBar } from './components/TopBar';
 import { Table } from './components/Table';
 import { HelpPopup } from './components/HelpPopup';
+import { HistoryManager } from './history/HistoryManager';
+import { DocumentCommand } from './history/DocumentCommand';
+import { UpdateCellCommand } from './history/UpdateCellCommand';
 import './App.css';
 
 // Helper: update a cell's text and recalculate the whole table (propagates to dependents)
@@ -93,28 +96,102 @@ const findActiveCell = (table: TableType, cellId: string): TableType['rows'][0][
   return null;
 };
 
-const findContainingTableId = (table: TableType, cellId: string): string | null => {
-  for (const row of table.rows) {
-    for (const cell of row.cells) {
-      if (cell.id === cellId) return table.id;
-      if (cell.table) {
-        const found = findContainingTableId(cell.table, cellId);
-        if (found) return found;
-      }
-    }
-  }
-  return null;
-};
-
 function App() {
   const [documentTable, setDocumentTable] = useState<TableType>(initialDocument);
   const [activeCellId, setActiveCellId] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, cellId: string } | null>(null);
 
+  const historyManagerRef = useRef(new HistoryManager());
+  const historyManager = historyManagerRef.current;
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+
   const tableRef = useRef(documentTable);
   const activeCellRef = useRef(activeCellId);
   const documentContainerRef = useRef<HTMLDivElement>(null);
+
+  const editingSessionRef = useRef<{ cellId: string; initialText: string } | null>(null);
+  const isUndoingOrRedoingRef = useRef(false);
+  const ignoreNextActiveCellSessionRef = useRef(false);
+
+  const applyCellUpdate = useCallback((cellId: string, text: string, targetActiveId: string | null) => {
+    setDocumentTable(prev => updateCellText(prev, cellId, text));
+    setActiveCellId(targetActiveId);
+  }, []);
+
+  const applyState = useCallback((table: TableType, cellId: string | null) => {
+    setDocumentTable(table);
+    setActiveCellId(cellId);
+  }, []);
+
+  const flushEditingSession = useCallback(() => {
+    if (isUndoingOrRedoingRef.current || ignoreNextActiveCellSessionRef.current) {
+      editingSessionRef.current = null;
+      return;
+    }
+    const session = editingSessionRef.current;
+    if (session) {
+      const currentCell = findActiveCell(tableRef.current, session.cellId);
+      const currentText = currentCell?.text ?? '';
+      if (currentText !== session.initialText) {
+        const cmd = new UpdateCellCommand(
+          'Edit Cell',
+          session.cellId,
+          session.initialText,
+          currentText,
+          session.cellId,
+          activeCellRef.current,
+          applyCellUpdate
+        );
+        historyManagerRef.current.execute(cmd, true);
+      }
+      editingSessionRef.current = null;
+    }
+  }, [applyCellUpdate]);
+
+  const handleUndo = useCallback(() => {
+    flushEditingSession();
+    isUndoingOrRedoingRef.current = true;
+    ignoreNextActiveCellSessionRef.current = true;
+    historyManagerRef.current.undo();
+    editingSessionRef.current = null;
+    isUndoingOrRedoingRef.current = false;
+  }, [flushEditingSession]);
+
+  const handleRedo = useCallback(() => {
+    flushEditingSession();
+    isUndoingOrRedoingRef.current = true;
+    ignoreNextActiveCellSessionRef.current = true;
+    historyManagerRef.current.redo();
+    editingSessionRef.current = null;
+    isUndoingOrRedoingRef.current = false;
+  }, [flushEditingSession]);
+
+  useEffect(() => {
+    return historyManager.subscribe(() => {
+      setCanUndo(historyManager.canUndo());
+      setCanRedo(historyManager.canRedo());
+    });
+  }, [historyManager]);
+
+  // Track cell edit session changes: flushes and resets ONLY when activeCellId changes
+  useEffect(() => {
+    if (isUndoingOrRedoingRef.current || ignoreNextActiveCellSessionRef.current) {
+      ignoreNextActiveCellSessionRef.current = false;
+      editingSessionRef.current = null;
+      return;
+    }
+    flushEditingSession();
+
+    if (activeCellId) {
+      const cell = findActiveCell(tableRef.current, activeCellId);
+      editingSessionRef.current = {
+        cellId: activeCellId,
+        initialText: cell?.text ?? '',
+      };
+    }
+  }, [activeCellId, flushEditingSession]);
 
   // Load on startup: localStorage first, then dev-server /api/load as fallback
   useEffect(() => {
@@ -175,14 +252,31 @@ function App() {
     activeCellRef.current = activeCellId;
   }, [activeCellId]);
 
-  // Handle keystrokes (Tab, Enter, Arrows) that bubble up
+  // Handle global shortcuts (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z)
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [handleUndo, handleRedo]);
+
+  // Handle keystrokes (Tab, Enter, Arrows) bubbling up
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
       const currentTable = tableRef.current;
       const currentActiveCellId = activeCellRef.current;
 
-      // If we don't have an active cell, or it's a modifier key alone without Tab, do nothing
-      // We allow ctrlKey for Ctrl+Tab
       if (!currentActiveCellId || e.metaKey || e.altKey) {
         return;
       }
@@ -192,23 +286,28 @@ function App() {
 
       if (e.key === 'Tab') {
         e.preventDefault();
+        flushEditingSession();
+        const oldTable = currentTable;
+        const oldActive = currentActiveCellId;
         if (e.ctrlKey) {
           const { newTable, newActiveCellId } = handleCtrlTab(currentTable, currentActiveCellId);
-          setDocumentTable(newTable);
-          setActiveCellId(newActiveCellId);
+          const cmd = new DocumentCommand('Add Subtable', oldTable, newTable, oldActive, newActiveCellId, applyState);
+          historyManager.execute(cmd);
         } else {
           const { newTable, newActiveCellId } = handleTab(currentTable, currentActiveCellId);
           const adjusted = adjustFormulasAfterStructureChange(currentTable, newTable);
-          setDocumentTable(recalculateTable(adjusted));
-          setActiveCellId(newActiveCellId);
+          const finalTable = recalculateTable(adjusted);
+          const cmd = new DocumentCommand('Add Column', oldTable, finalTable, oldActive, newActiveCellId, applyState);
+          historyManager.execute(cmd);
         }
         return;
       }
 
       if (e.key === 'Enter') {
         e.preventDefault();
-        // Commit any in-progress edit: read formula text directly from DOM
-        // (avoids stale tableRef when Enter is pressed immediately after typing)
+        flushEditingSession();
+        const oldTable = currentTable;
+        const oldActive = currentActiveCellId;
         let latestTable = currentTable;
         if (currentActiveCellId) {
           const activeTd = document.querySelector(`[data-cell-id="${currentActiveCellId}"]`) as HTMLElement | null;
@@ -219,13 +318,15 @@ function App() {
         }
         const { newTable, newActiveCellId } = handleEnter(latestTable, currentActiveCellId!);
         const adjusted = adjustFormulasAfterStructureChange(latestTable, newTable);
-        setDocumentTable(recalculateTable(adjusted));
-        setActiveCellId(newActiveCellId);
+        const finalTable = recalculateTable(adjusted);
+        const cmd = new DocumentCommand('Add Row', oldTable, finalTable, oldActive, newActiveCellId, applyState);
+        historyManager.execute(cmd);
         return;
       }
 
       if (e.key === 'Escape') {
         e.preventDefault();
+        flushEditingSession();
         if (currentActiveCellId) {
           const activeTd = document.querySelector(`[data-cell-id="${currentActiveCellId}"]`) as HTMLElement | null;
           if (activeTd) {
@@ -238,50 +339,40 @@ function App() {
 
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         e.preventDefault();
+        flushEditingSession();
         const newActiveCellId = handleArrow(currentTable, currentActiveCellId, e.key as any);
         setActiveCellId(newActiveCellId);
         return;
       }
     },
-    [] // No dependencies needed due to refs
+    [applyState, flushEditingSession, historyManager]
   );
 
   const handleCellClick = (cellId: string) => {
     setActiveCellId(cellId);
   };
 
-  // Track last-inserted cell reference during formula editing (for cycling rel→abs→remove)
+  const handleCellContextMenu = useCallback((e: React.MouseEvent, cellId: string) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, cellId });
+  }, []);
+
   const formulaRefStateRef = useRef<{ cellId: string; refText: string } | null>(null);
   useEffect(() => { formulaRefStateRef.current = null; }, [activeCellId]);
-
-  const handleCellTypeChange = (newType: 'text' | 'number' | 'formula') => {
-    if (activeCellId) {
-      setDocumentTable(prev => updateCellTypeInTree(prev, activeCellId, newType));
-    }
-  };
-
-  const activeCellProps = activeCellId ? findActiveCell(documentTable, activeCellId) : null;
-  const activeCellType = getCellType(activeCellProps?.className);
-  const isEditingFormula = (activeCellProps?.text ?? '').startsWith('=');
-  
-  const activeCellName = activeCellId ? getCellNameById(documentTable, activeCellId) : null;
 
   const handleCellRefClick = useCallback((clickedCellId: string) => {
     if (!activeCellId) return;
     const activeTd = document.querySelector(`[data-cell-id="${activeCellId}"]`) as HTMLElement | null;
     if (!activeTd) return;
 
-    // Convert the UUID to its visual representation (e.g. B.3)
     const visualName = getCellNameById(documentTable, clickedCellId);
     if (!visualName) return;
 
-    // Relative: "B.3"  |  Absolute: "$B.$3"
     const relRef = visualName;
     const absRef = visualName
-      .replace(/([A-Z]+)\./g, '$$$1.')  // B. → $B.   ('$$$1' = literal$ + capture group 1)
-      .replace(/\.(\d+)/g, '.$$$1');   // .3 → .$3   ('.$$$1' = .$ + capture group 1)
+      .replace(/([A-Z]+)\./g, '$$$1.')
+      .replace(/\.(\d+)/g, '.$$$1');
 
-    // Place cursor at a specific text offset in a contentEditable element
     const setCursor = (el: HTMLElement, offset: number) => {
       const node = el.firstChild;
       if (!node) return;
@@ -298,7 +389,6 @@ function App() {
     if (lastRef && lastRef.cellId === clickedCellId) {
       const currentText = activeTd.textContent || '';
       if (lastRef.refText === relRef) {
-        // Cycle relative → absolute
         const idx = currentText.lastIndexOf(relRef);
         if (idx >= 0) {
           const newText = currentText.slice(0, idx) + absRef + currentText.slice(idx + relRef.length);
@@ -310,7 +400,6 @@ function App() {
           return;
         }
       } else {
-        // Cycle absolute → remove
         const idx = currentText.lastIndexOf(lastRef.refText);
         if (idx >= 0) {
           const newText = currentText.slice(0, idx) + currentText.slice(idx + lastRef.refText.length);
@@ -323,7 +412,6 @@ function App() {
         }
       }
     } else {
-      // Insert relative ref at cursor; execCommand preserves cursor position naturally
       const inserted = document.execCommand('insertText', false, relRef);
       if (!inserted) {
         const newText = (activeTd.textContent || '') + relRef;
@@ -333,28 +421,38 @@ function App() {
       formulaRefStateRef.current = { cellId: clickedCellId, refText: relRef };
     }
     activeTd.focus();
-  }, [activeCellId]);
+  }, [activeCellId, documentTable]);
 
-  const handleCellContextMenu = useCallback((e: React.MouseEvent, cellId: string) => {
-    e.preventDefault();
-    setContextMenu({ x: e.clientX, y: e.clientY, cellId });
-  }, []);
-
-  const closeContextMenu = () => {
-    if (contextMenu) setContextMenu(null);
+  const handleCellTypeChange = (newType: 'text' | 'number' | 'formula') => {
+    if (activeCellId) {
+      flushEditingSession();
+      const oldTable = tableRef.current;
+      const newTable = updateCellTypeInTree(oldTable, activeCellId, newType);
+      const cmd = new DocumentCommand('Change Cell Type', oldTable, newTable, activeCellId, activeCellId, applyState);
+      historyManager.execute(cmd);
+    }
   };
+
+  const activeCellProps = activeCellId ? findActiveCell(documentTable, activeCellId) : null;
+  const activeCellType = getCellType(activeCellProps?.className);
+  const isEditingFormula = (activeCellProps?.text ?? '').startsWith('=');
+  
+  const activeCellName = activeCellId ? getCellNameById(documentTable, activeCellId) : null;
 
   const handleDeleteMenuAction = (action: 'row' | 'column' | 'table') => {
     if (!contextMenu) return;
+    flushEditingSession();
     const { cellId } = contextMenu;
-    setDocumentTable(prev => {
-      let newTable = prev;
-      if (action === 'row') newTable = deleteRow(newTable, cellId);
-      if (action === 'column') newTable = deleteColumn(newTable, cellId);
-      if (action === 'table') newTable = deleteTable(newTable, cellId);
-      const adjusted = adjustFormulasAfterStructureChange(prev, newTable);
-      return recalculateTable(adjusted);
-    });
+    const oldTable = tableRef.current;
+    const oldActive = activeCellId;
+    let newTable = oldTable;
+    if (action === 'row') newTable = deleteRow(newTable, cellId);
+    if (action === 'column') newTable = deleteColumn(newTable, cellId);
+    if (action === 'table') newTable = deleteTable(newTable, cellId);
+    const adjusted = adjustFormulasAfterStructureChange(oldTable, newTable);
+    const finalTable = recalculateTable(adjusted);
+    const cmd = new DocumentCommand(`Delete ${action}`, oldTable, finalTable, oldActive, null, applyState);
+    historyManager.execute(cmd);
     setContextMenu(null);
   };
 
@@ -363,12 +461,17 @@ function App() {
     const importer = availableImporters.find(imp => imp.id === importerId);
     if (!importer) return;
 
+    flushEditingSession();
+    const oldTable = tableRef.current;
+    const oldActive = activeCellId;
     const reader = new FileReader();
     reader.onload = (e) => {
       const content = e.target?.result as string;
       if (typeof content === 'string') {
         const parsedSubTable = importer.parse(content);
-        setDocumentTable(prev => recalculateTable(insertSubTableAtCell(prev, activeCellId, parsedSubTable)));
+        const finalTable = recalculateTable(insertSubTableAtCell(oldTable, oldActive, parsedSubTable));
+        const cmd = new DocumentCommand(`Import ${importer.name}`, oldTable, finalTable, oldActive, oldActive, applyState);
+        historyManager.execute(cmd);
       }
     };
     reader.readAsText(file);
@@ -378,48 +481,77 @@ function App() {
     <div 
       style={{ height: '100vh', display: 'flex', flexDirection: 'column', outline: 'none' }} 
       onClick={() => {
+        flushEditingSession();
         setActiveCellId(null);
-        closeContextMenu();
+        if (contextMenu) setContextMenu(null);
       }}
       onKeyDown={handleKeyDown}
-      tabIndex={0}
     >
       <TopBar 
         activeCellName={activeCellName} 
         activeCellType={activeCellType}
+        onHelpClick={() => setShowHelp(true)}
         onCellTypeChange={handleCellTypeChange}
-        onHelpClick={() => setShowHelp(true)} 
         onImportFile={handleImportFile}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        canUndo={canUndo}
+        canRedo={canRedo}
       />
-      
-      <div style={{ flex: 1, padding: '20px', overflow: 'auto' }} ref={documentContainerRef}>
+      <div 
+        ref={documentContainerRef}
+        style={{ flex: 1, overflow: 'auto', padding: '20px' }}
+      >
         <Table 
           table={documentTable} 
-          activeCellId={activeCellId} 
+          activeCellId={activeCellId}
           onCellClick={handleCellClick}
-          onCellInput={(cellId, newText) => setDocumentTable(prev => updateCellText(prev, cellId, newText))}
-          onDeselect={() => setActiveCellId(null)}
+          onCellInput={(cellId, newText) => {
+            setDocumentTable(prev => updateCellText(prev, cellId, newText));
+          }}
+          onCellContextMenu={handleCellContextMenu}
           isEditingFormula={isEditingFormula}
           onCellRefClick={handleCellRefClick}
-          onCellContextMenu={handleCellContextMenu}
+          onDeselect={() => setActiveCellId(null)}
         />
       </div>
-
+      {showHelp && <HelpPopup onClose={() => setShowHelp(false)} />}
+      
       {contextMenu && (
         <div 
-          className="context-menu"
-          style={{ top: contextMenu.y, left: contextMenu.x }}
-          onClick={(e) => e.stopPropagation()} // don't close immediately when clicking inside
+          style={{
+            position: 'fixed',
+            top: contextMenu.y,
+            left: contextMenu.x,
+            backgroundColor: 'white',
+            border: '1px solid #ccc',
+            boxShadow: '2px 2px 5px rgba(0,0,0,0.2)',
+            zIndex: 1000,
+            display: 'flex',
+            flexDirection: 'column'
+          }}
+          onClick={(e) => e.stopPropagation()}
         >
-          <div onClick={() => handleDeleteMenuAction('row')}>Supprimer la ligne</div>
-          <div onClick={() => handleDeleteMenuAction('column')}>Supprimer la colonne</div>
-          {getCellNameById(documentTable, contextMenu.cellId) !== 'A.1' && (
-            <div onClick={() => handleDeleteMenuAction('table')}>Supprimer la table</div>
-          )}
+          <button 
+            onClick={() => handleDeleteMenuAction('row')}
+            style={{ padding: '8px 12px', border: 'none', background: 'none', textAlign: 'left', cursor: 'pointer' }}
+          >
+            Supprimer la ligne
+          </button>
+          <button 
+            onClick={() => handleDeleteMenuAction('column')}
+            style={{ padding: '8px 12px', border: 'none', background: 'none', textAlign: 'left', cursor: 'pointer' }}
+          >
+            Supprimer la colonne
+          </button>
+          <button 
+            onClick={() => handleDeleteMenuAction('table')}
+            style={{ padding: '8px 12px', border: 'none', background: 'none', textAlign: 'left', cursor: 'pointer' }}
+          >
+            Supprimer le sous-tableau
+          </button>
         </div>
       )}
-
-      {showHelp && <HelpPopup onClose={() => setShowHelp(false)} />}
     </div>
   );
 }

@@ -7,6 +7,10 @@ interface TopBarProps {
   onHelpClick: () => void;
   onCellTypeChange: (type: 'text' | 'number' | 'formula') => void;
   onImportFile: (importerId: string, file: File) => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({ 
@@ -15,6 +19,10 @@ export const TopBar: React.FC<TopBarProps> = ({
   onHelpClick, 
   onCellTypeChange,
   onImportFile,
+  onUndo,
+  onRedo,
+  canUndo = false,
+  canRedo = false,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const selectedImporterIdRef = useRef<string | null>(null);
@@ -61,6 +69,23 @@ export const TopBar: React.FC<TopBarProps> = ({
         <button style={{ marginRight: '5px' }} title="Bold (placeholder)">B</button>
         <button style={{ marginRight: '5px' }} title="Italic (placeholder)">I</button>
         <button style={{ marginRight: '15px' }} title="Underline (placeholder)">U</button>
+
+        <button 
+          onClick={onUndo} 
+          disabled={!canUndo} 
+          style={{ marginRight: '5px', padding: '4px 8px', cursor: canUndo ? 'pointer' : 'default', opacity: canUndo ? 1 : 0.4 }} 
+          title="Annuler (Ctrl+Z)"
+        >
+          ↺ Undo
+        </button>
+        <button 
+          onClick={onRedo} 
+          disabled={!canRedo} 
+          style={{ marginRight: '15px', padding: '4px 8px', cursor: canRedo ? 'pointer' : 'default', opacity: canRedo ? 1 : 0.4 }} 
+          title="Rétablir (Ctrl+Y / Ctrl+Shift+Z)"
+        >
+          ↻ Redo
+        </button>
         
         <select 
           defaultValue=""

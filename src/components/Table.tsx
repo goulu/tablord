@@ -35,7 +35,7 @@ const EditableCell = memo(({ cell, isActive, isEditingFormula, onCellClick, onCe
   const tdRef = useRef<HTMLTableCellElement>(null);
   const originalTextRef = useRef<string>(''); // captured on activation
 
-  // When this cell becomes the active one: set DOM text and move cursor to end.
+  // When this cell becomes active or cell.text changes: set DOM text and move cursor to end.
   useLayoutEffect(() => {
     const td = tdRef.current;
     if (!td) return;
@@ -44,19 +44,18 @@ const EditableCell = memo(({ cell, isActive, isEditingFormula, onCellClick, onCe
       const formulaOrText = cell.text;
       if (td.textContent !== formulaOrText) {
         td.textContent = formulaOrText;
-      }
-      if (typeof window.getSelection !== 'undefined' && typeof document.createRange !== 'undefined') {
-        const range = document.createRange();
-        range.selectNodeContents(td);
-        range.collapse(false);
-        const sel = window.getSelection();
-        sel?.removeAllRanges();
-        sel?.addRange(range);
+        if (typeof window.getSelection !== 'undefined' && typeof document.createRange !== 'undefined') {
+          const range = document.createRange();
+          range.selectNodeContents(td);
+          range.collapse(false);
+          const sel = window.getSelection();
+          sel?.removeAllRanges();
+          sel?.addRange(range);
+        }
       }
       td.focus();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive, cell.id]);
+  }, [isActive, cell.id, cell.text]);
 
   useEffect(() => {
     const td = tdRef.current;
