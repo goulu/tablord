@@ -819,3 +819,8 @@ export const insertSubTableAtCell = (table: Table, targetCellId: string, subTabl
   return traverse(table);
 };
 
+export const adjustFormulasAfterStructureChange = (_oldTable: Table, newTable: Table): Table => {
+  // If no structural change helper is needed, return newTable or recalculate
+  return newTable;
+};
+
