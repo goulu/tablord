@@ -127,7 +127,7 @@ npm run build      # production build
 npm test           # run unit tests
 ```
 
-The production build is automatically deployed to GitHub Pages via GitHub Actions on every push to the `new` branch.
+The production build is automatically deployed to GitHub Pages via GitHub Actions on every push to the `develop` branch.
 
 ---
 
