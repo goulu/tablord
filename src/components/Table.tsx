@@ -7,6 +7,7 @@ interface TableProps {
   activeCellId: string | null;
   onCellClick: (cellId: string) => void;
   onCellInput: (cellId: string, text: string) => void;
+  onDeselect?: () => void;
   isEditingFormula?: boolean;
   onCellRefClick?: (cellId: string) => void;
   onCellContextMenu?: (e: React.MouseEvent, cellId: string) => void;
@@ -24,12 +25,13 @@ interface EditableCellProps {
   isEditingFormula: boolean;
   onCellClick: (id: string) => void;
   onCellInput: (id: string, text: string) => void;
+  onDeselect?: () => void;
   onCellRefClick?: (cellId: string) => void;
   onCellContextMenu?: (e: React.MouseEvent, cellId: string) => void;
   children?: React.ReactNode; // nested Table for cells with sub-tables
 }
 
-const EditableCell = memo(({ cell, isActive, isEditingFormula, onCellClick, onCellInput, onCellRefClick, onCellContextMenu, children }: EditableCellProps) => {
+const EditableCell = memo(({ cell, isActive, isEditingFormula, onCellClick, onCellInput, onDeselect, onCellRefClick, onCellContextMenu, children }: EditableCellProps) => {
   const tdRef = useRef<HTMLTableCellElement>(null);
   const originalTextRef = useRef<string>(''); // captured on activation
 
@@ -38,7 +40,7 @@ const EditableCell = memo(({ cell, isActive, isEditingFormula, onCellClick, onCe
     const td = tdRef.current;
     if (!td) return;
     if (isActive && !cell.table) {
-      originalTextRef.current = cell.value ?? cell.text;
+      originalTextRef.current = cell.text;
       const formulaOrText = cell.text;
       if (td.textContent !== formulaOrText) {
         td.textContent = formulaOrText;
@@ -97,18 +99,13 @@ const EditableCell = memo(({ cell, isActive, isEditingFormula, onCellClick, onCe
           e.preventDefault();
           e.stopPropagation();
           const td = tdRef.current;
+          const original = originalTextRef.current;
           if (td) {
-            td.textContent = originalTextRef.current;
-            if (typeof window.getSelection !== 'undefined' && typeof document.createRange !== 'undefined') {
-              const range = document.createRange();
-              range.selectNodeContents(td);
-              range.collapse(false);
-              const sel = window.getSelection();
-              sel?.removeAllRanges();
-              sel?.addRange(range);
-            }
+            td.textContent = original;
+            td.blur();
           }
-          onCellInput(cell.id, cell.text);
+          onCellInput(cell.id, original);
+          onDeselect?.();
           return;
         }
         if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
@@ -149,7 +146,7 @@ EditableCell.displayName = 'EditableCell';
 // Table: recursive component
 // ──────────────────────────────────────────────
 export const Table: React.FC<TableProps> = ({
-  table, activeCellId, onCellClick, onCellInput,
+  table, activeCellId, onCellClick, onCellInput, onDeselect,
   isEditingFormula = false, onCellRefClick, onCellContextMenu,
   depth = 0
 }) => {
@@ -173,6 +170,7 @@ export const Table: React.FC<TableProps> = ({
                     isEditingFormula={isEditingFormula}
                     onCellClick={onCellClick}
                     onCellInput={onCellInput}
+                    onDeselect={onDeselect}
                     onCellRefClick={onCellRefClick}
                     onCellContextMenu={onCellContextMenu}
                   >
@@ -182,6 +180,7 @@ export const Table: React.FC<TableProps> = ({
                         activeCellId={activeCellId}
                         onCellClick={onCellClick}
                         onCellInput={onCellInput}
+                        onDeselect={onDeselect}
                         isEditingFormula={isEditingFormula}
                         onCellRefClick={onCellRefClick}
                         onCellContextMenu={onCellContextMenu}

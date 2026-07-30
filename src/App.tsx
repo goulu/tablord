@@ -221,6 +221,18 @@ function App() {
         return;
       }
 
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        if (currentActiveCellId) {
+          const activeTd = document.querySelector(`[data-cell-id="${currentActiveCellId}"]`) as HTMLElement | null;
+          if (activeTd) {
+            activeTd.blur();
+          }
+        }
+        setActiveCellId(null);
+        return;
+      }
+
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         e.preventDefault();
         const newActiveCellId = handleArrow(currentTable, currentActiveCellId, e.key as any);
@@ -382,6 +394,7 @@ function App() {
           activeCellId={activeCellId} 
           onCellClick={handleCellClick}
           onCellInput={(cellId, newText) => setDocumentTable(prev => updateCellText(prev, cellId, newText))}
+          onDeselect={() => setActiveCellId(null)}
           isEditingFormula={isEditingFormula}
           onCellRefClick={handleCellRefClick}
           onCellContextMenu={handleCellContextMenu}
