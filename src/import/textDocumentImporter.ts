@@ -39,9 +39,14 @@ export abstract class TextDocumentImporter implements Importer {
 
   /**
    * Recursively parses a slice of lines [startIndex, endIndex) at parentLevel.
-   * Headings of level > parentLevel are added as 2 rows (Title row & Content row) to the current table.
-   * List items are added as 2-cell rows (Col A: marker / =INC(), Col B: item text).
-   * Non-heading, non-list lines are added as 1-cell rows (no empty cell on the left!).
+   *
+   * When encountering a heading of level N (> parentLevel):
+   * - A row of 2 cells is added to the level N container table:
+   *   - Col A: contains "=INC()" (className: "formula hN")
+   *   - Col B: contains a sub-table of 2 rows (1 column):
+   *     - Row 1: Heading title text (className: "text hN")
+   *     - Row 2: Section content up to next title of level <= N (table: bodyTable)
+   * - If subsequent headings are also of level N, corresponding 2-cell rows are added to the SAME container table.
    */
   protected parseBlock(lines: string[], startIndex: number, endIndex: number, parentLevel: number): Table {
     const rows: Row[] = [];
@@ -72,7 +77,41 @@ export abstract class TextDocumentImporter implements Importer {
 
           const headingClass = `h${headingLevel}`;
 
-          const titleRow: Row = {
+          // Create sub-table of 2 rows for Col B:
+          // Row 1 (Top): Heading title text
+          // Row 2 (Bottom): Section content bodyTable
+          const headingSubTable: Table = {
+            id: generateId(),
+            columns: ['A'],
+            rows: [
+              {
+                id: generateId(),
+                cells: [
+                  {
+                    id: generateId(),
+                    text: heading.title,
+                    className: `text ${headingClass}`,
+                  },
+                ],
+              },
+              {
+                id: generateId(),
+                cells: [
+                  {
+                    id: generateId(),
+                    text: '',
+                    className: 'text',
+                    table: bodyTable,
+                  },
+                ],
+              },
+            ],
+          };
+
+          // Create 2-cell row for the level N container table:
+          // Col A: =INC()
+          // Col B: headingSubTable
+          const sectionRow: Row = {
             id: generateId(),
             cells: [
               {
@@ -82,30 +121,14 @@ export abstract class TextDocumentImporter implements Importer {
               },
               {
                 id: generateId(),
-                text: heading.title,
-                className: `text ${headingClass}`,
+                text: '',
+                className: 'text',
+                table: headingSubTable,
               },
             ],
           };
 
-          const contentRow: Row = {
-            id: generateId(),
-            cells: [
-              {
-                id: generateId(),
-                text: '',
-                className: 'text',
-              },
-              {
-                id: generateId(),
-                text: '',
-                className: 'text',
-                table: bodyTable,
-              },
-            ],
-          };
-
-          rows.push(titleRow, contentRow);
+          rows.push(sectionRow);
           i = j;
         } else {
           // Heading level <= parentLevel: belongs to outer parent block

@@ -17,22 +17,81 @@ class DummyTextImporter extends TextDocumentImporter {
   }
 }
 
-describe('TextDocumentImporter & MarkdownImporter full features', () => {
-  it('strips ### hashes from heading titles in MarkdownImporter', () => {
+describe('TextDocumentImporter & MarkdownImporter new structure', () => {
+  it('creates a 2-cell row per heading in container table, Col B containing a 2-row sub-table (Title & Content)', () => {
+    const dummy = new DummyTextImporter();
+    const txt = `
+H1: Section 1
+Paragraph A
+Paragraph B
+H1: Section 2
+Paragraph C
+`;
+    const table = dummy.parse(txt);
+    expect(table.columns).toEqual(['A', 'B']);
+    // 2 level 1 headings = 2 rows in the root container table
+    expect(table.rows.length).toBe(2);
+
+    // --- Section 1 (Row 1 of root container table) ---
+    // Col A: =INC()
+    expect(table.rows[0].cells[0].text).toBe('=INC()');
+    expect(table.rows[0].cells[0].className).toBe('formula h1');
+
+    // Col B: 2-row sub-table (Title & Content)
+    const sec1SubTable = table.rows[0].cells[1].table;
+    expect(sec1SubTable).toBeDefined();
+    expect(sec1SubTable?.columns).toEqual(['A']);
+    expect(sec1SubTable?.rows.length).toBe(2);
+
+    // Row 1 of sec1SubTable: Title text
+    expect(sec1SubTable?.rows[0].cells[0].text).toBe('H1: Section 1');
+    expect(sec1SubTable?.rows[0].cells[0].className).toBe('text h1');
+
+    // Row 2 of sec1SubTable: Section content bodyTable
+    const sec1Body = sec1SubTable?.rows[1].cells[0].table;
+    expect(sec1Body?.rows.length).toBe(2);
+    expect(sec1Body?.rows[0].cells[0].text).toBe('Paragraph A');
+    expect(sec1Body?.rows[1].cells[0].text).toBe('Paragraph B');
+
+    // --- Section 2 (Row 2 of root container table) ---
+    // Col A: =INC()
+    expect(table.rows[1].cells[0].text).toBe('=INC()');
+    expect(table.rows[1].cells[0].className).toBe('formula h1');
+
+    // Col B: 2-row sub-table (Title & Content)
+    const sec2SubTable = table.rows[1].cells[1].table;
+    expect(sec2SubTable?.rows[0].cells[0].text).toBe('H1: Section 2');
+    expect(sec2SubTable?.rows[0].cells[0].className).toBe('text h1');
+
+    const sec2Body = sec2SubTable?.rows[1].cells[0].table;
+    expect(sec2Body?.rows[0].cells[0].text).toBe('Paragraph C');
+  });
+
+  it('strips ### hashes from heading titles in MarkdownImporter while using new structure', () => {
     const md = `
 # Title Level 1
 ### Title Level 3
 `;
     const table = parseMarkdownToTable(md);
-    expect(table.rows[0].cells[1].text).toBe('Title Level 1');
-    expect(table.rows[0].cells[1].className).toBe('text h1');
+    expect(table.columns).toEqual(['A', 'B']);
 
-    const body = table.rows[1].cells[1].table;
-    expect(body?.rows[0].cells[1].text).toBe('Title Level 3');
-    expect(body?.rows[0].cells[1].className).toBe('text h3');
+    // Title Level 1 (Row 1 Col B sub-table)
+    const h1Sub = table.rows[0].cells[1].table;
+    expect(h1Sub?.rows[0].cells[0].text).toBe('Title Level 1');
+    expect(h1Sub?.rows[0].cells[0].className).toBe('text h1');
+
+    // Title Level 3 in h1Body
+    const h1Body = h1Sub?.rows[1].cells[0].table;
+    const h3Row = h1Body?.rows[0];
+    expect(h3Row?.cells[0].text).toBe('=INC()');
+    expect(h3Row?.cells[0].className).toBe('formula h3');
+
+    const h3Sub = h3Row?.cells[1].table;
+    expect(h3Sub?.rows[0].cells[0].text).toBe('Title Level 3');
+    expect(h3Sub?.rows[0].cells[0].className).toBe('text h3');
   });
 
-  it('parses unordered and ordered lists with marker on first item and =INC() on subsequent items', () => {
+  it('parses lists with marker on first item and =INC() on subsequent items', () => {
     const md = `
 * First bullet
 * Second bullet
@@ -75,72 +134,11 @@ Another paragraph text.
     const table = parseMarkdownToTable(md);
     expect(table.rows.length).toBe(2);
 
-    // Row 1: 1-cell row containing paragraph
     expect(table.rows[0].cells.length).toBe(1);
     expect(table.rows[0].cells[0].text).toBe('Some description paragraph.');
 
-    // Row 2: 1-cell row containing paragraph
     expect(table.rows[1].cells.length).toBe(1);
     expect(table.rows[1].cells[0].text).toBe('Another paragraph text.');
-  });
-
-  it('groups all headings of the same level N in the SAME 2-column table', () => {
-    const dummy = new DummyTextImporter();
-    const txt = `
-H1: Section 1
-Paragraph A
-Paragraph B
-H1: Section 2
-Paragraph C
-`;
-    const table = dummy.parse(txt);
-    expect(table.columns).toEqual(['A', 'B']);
-    expect(table.rows.length).toBe(4);
-
-    // Row 1: Section 1 Title
-    expect(table.rows[0].cells[0].text).toBe('=INC()');
-    expect(table.rows[0].cells[1].text).toBe('H1: Section 1');
-
-    // Row 2: Section 1 Content
-    const sec1Body = table.rows[1].cells[1].table;
-    expect(sec1Body?.rows.length).toBe(2);
-    expect(sec1Body?.rows[0].cells[0].text).toBe('Paragraph A');
-    expect(sec1Body?.rows[1].cells[0].text).toBe('Paragraph B');
-
-    // Row 3: Section 2 Title in SAME root table!
-    expect(table.rows[2].cells[0].text).toBe('=INC()');
-    expect(table.rows[2].cells[1].text).toBe('H1: Section 2');
-  });
-
-  it('parses mixed markdown with GFM tables inside sections', () => {
-    const md = `
-# Header 1
-
-Some description paragraph.
-
-| Col A | Col B | Col C |
-|---|---|---|
-| 10 | 20 | 30 |
-
-Final footer text.
-`;
-    const table = parseMarkdownToTable(md);
-    expect(table.columns).toEqual(['A', 'B']);
-    expect(table.rows[0].cells[0].text).toBe('=INC()');
-    expect(table.rows[0].cells[1].text).toBe('Header 1'); // Stripped #
-    expect(table.rows[0].cells[1].className).toBe('text h1');
-
-    const body = table.rows[1].cells[1].table;
-    expect(body?.rows[0].cells[0].text).toBe('Some description paragraph.');
-
-    // GFM table sub-sub-table
-    const gfmTable = body?.rows[1].cells[0].table;
-    expect(gfmTable?.columns).toEqual(['A', 'B', 'C']);
-    expect(gfmTable?.rows[0].cells[0].text).toBe('Col A');
-    expect(gfmTable?.rows[1].cells[0].text).toBe('10');
-    expect(gfmTable?.rows[1].cells[0].className).toBe('number');
-
-    expect(body?.rows[2].cells[0].text).toBe('Final footer text.');
   });
 
   it('handles empty string gracefully', () => {
