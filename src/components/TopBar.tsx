@@ -4,8 +4,10 @@ import { availableImporters } from '../import';
 interface TopBarProps {
   activeCellName: string | null;
   activeCellType: 'text' | 'number' | 'formula' | undefined;
+  activeCellStyle?: 'none' | 'h1' | 'h2' | 'h3' | undefined;
   onHelpClick: () => void;
   onCellTypeChange: (type: 'text' | 'number' | 'formula') => void;
+  onCellStyleChange?: (style: 'none' | 'h1' | 'h2' | 'h3') => void;
   onImportFile: (importerId: string, file: File) => void;
   onUndo?: () => void;
   onRedo?: () => void;
@@ -16,8 +18,10 @@ interface TopBarProps {
 export const TopBar: React.FC<TopBarProps> = ({ 
   activeCellName, 
   activeCellType,
+  activeCellStyle = 'none',
   onHelpClick, 
   onCellTypeChange,
+  onCellStyleChange,
   onImportFile,
   onUndo,
   onRedo,
@@ -115,20 +119,35 @@ export const TopBar: React.FC<TopBarProps> = ({
           Help
         </button>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center' }}>
-        <span style={{ marginRight: '10px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span style={{ marginRight: '4px' }}>
           {activeCellName ? `${activeCellName}` : 'Ready'}
         </span>
         {activeCellName && (
-          <select 
-            value={activeCellType || 'text'} 
-            onChange={(e) => onCellTypeChange(e.target.value as any)}
-            style={{ padding: '4px' }}
-          >
-            <option value="text">text</option>
-            <option value="number">number</option>
-            <option value="formula">formula</option>
-          </select>
+          <>
+            <select 
+              value={activeCellType || 'text'} 
+              onChange={(e) => onCellTypeChange(e.target.value as any)}
+              style={{ padding: '4px' }}
+              title="Type de cellule"
+            >
+              <option value="text">text</option>
+              <option value="number">number</option>
+              <option value="formula">formula</option>
+            </select>
+
+            <select
+              value={activeCellStyle || 'none'}
+              onChange={(e) => onCellStyleChange && onCellStyleChange(e.target.value as any)}
+              style={{ padding: '4px' }}
+              title="Style de cellule (titre)"
+            >
+              <option value="none">Standard</option>
+              <option value="h1">Titre 1 (h1)</option>
+              <option value="h2">Titre 2 (h2)</option>
+              <option value="h3">Titre 3 (h3)</option>
+            </select>
+          </>
         )}
       </div>
     </div>

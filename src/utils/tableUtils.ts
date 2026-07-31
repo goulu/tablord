@@ -1111,3 +1111,52 @@ export const adjustFormulasAfterStructureChange = (
   return updateTree(newTable);
 };
 
+export type HeadingStyle = 'none' | 'h1' | 'h2' | 'h3';
+
+export const getCellStyle = (className?: string): HeadingStyle => {
+  if (!className) return 'none';
+  const classes = className.split(/\s+/);
+  if (classes.includes('h1')) return 'h1';
+  if (classes.includes('h2')) return 'h2';
+  if (classes.includes('h3')) return 'h3';
+  return 'none';
+};
+
+export const setCellStyleClass = (currentClassName: string = '', newStyle: HeadingStyle): string => {
+  const HEADING_CLASSES = new Set(['h1', 'h2', 'h3']);
+  const classes = currentClassName.split(/\s+/).filter(c => c && !HEADING_CLASSES.has(c));
+  if (newStyle !== 'none') {
+    classes.push(newStyle);
+  }
+  return classes.join(' ');
+};
+
+export const updateCellStyleInTree = (
+  table: Table,
+  cellId: string,
+  newStyle: HeadingStyle
+): Table => {
+  return {
+    ...table,
+    rows: table.rows.map((row) => ({
+      ...row,
+      cells: row.cells.map((cell) => {
+        if (cell.id === cellId) {
+          return {
+            ...cell,
+            className: setCellStyleClass(cell.className || '', newStyle),
+          };
+        }
+        if (cell.table) {
+          return {
+            ...cell,
+            table: updateCellStyleInTree(cell.table, cellId, newStyle),
+          };
+        }
+        return cell;
+      }),
+    })),
+  };
+};
+
+

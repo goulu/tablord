@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { initialDocument } from '../src/types/document';
-import { handleTab, handleEnter, getCellType, setCellTypeClass, getCellNameById, deleteRow, deleteColumn, deleteTable } from '../src/utils/tableUtils';
+import { handleTab, handleEnter, getCellType, setCellTypeClass, getCellNameById, deleteRow, deleteColumn, deleteTable, getCellStyle, setCellStyleClass } from '../src/utils/tableUtils';
 
 describe('Table navigation and cell typing logic', () => {
 
@@ -15,6 +15,16 @@ describe('Table navigation and cell typing logic', () => {
     expect(setCellTypeClass('', 'number')).toBe('number');
     expect(setCellTypeClass('bold', 'number')).toBe('bold number');
     expect(setCellTypeClass('number bold', 'text')).toBe('bold text');
+  });
+
+  it('getCellStyle and setCellStyleClass should handle heading styles correctly', () => {
+    expect(getCellStyle('text h1')).toBe('h1');
+    expect(getCellStyle('number h2 bold')).toBe('h2');
+    expect(getCellStyle('text')).toBe('none');
+
+    expect(setCellStyleClass('text', 'h1')).toBe('text h1');
+    expect(setCellStyleClass('text h1', 'h2')).toBe('text h2');
+    expect(setCellStyleClass('bold text h3', 'none')).toBe('bold text');
   });
 
   it('should auto-increment numbers when creating new rows via Enter', () => {

@@ -5,7 +5,7 @@ import {
   handleTab, handleEnter, handleCtrlTab, handleArrow, 
   getCellType, setCellTypeClass, evaluateFormula, recalculateTable, buildValueMap,
   deleteRow, deleteColumn, deleteTable, getCellNameById, insertSubTableAtCell,
-  adjustFormulasAfterStructureChange
+  adjustFormulasAfterStructureChange, getCellStyle, updateCellStyleInTree
 } from './utils/tableUtils';
 import { parseHtmlToTable } from './utils/htmlUtils';
 import { availableImporters } from './import';
@@ -433,8 +433,19 @@ function App() {
     }
   };
 
+  const handleCellStyleChange = (newStyle: 'none' | 'h1' | 'h2' | 'h3') => {
+    if (activeCellId) {
+      flushEditingSession();
+      const oldTable = tableRef.current;
+      const newTable = updateCellStyleInTree(oldTable, activeCellId, newStyle);
+      const cmd = new DocumentCommand('Change Cell Style', oldTable, newTable, activeCellId, activeCellId, applyState);
+      historyManager.execute(cmd);
+    }
+  };
+
   const activeCellProps = activeCellId ? findActiveCell(documentTable, activeCellId) : null;
   const activeCellType = getCellType(activeCellProps?.className);
+  const activeCellStyle = getCellStyle(activeCellProps?.className);
   const isEditingFormula = (activeCellProps?.text ?? '').startsWith('=');
   
   const activeCellName = activeCellId ? getCellNameById(documentTable, activeCellId) : null;
@@ -490,8 +501,10 @@ function App() {
       <TopBar 
         activeCellName={activeCellName} 
         activeCellType={activeCellType}
+        activeCellStyle={activeCellStyle}
         onHelpClick={() => setShowHelp(true)}
         onCellTypeChange={handleCellTypeChange}
+        onCellStyleChange={handleCellStyleChange}
         onImportFile={handleImportFile}
         onUndo={handleUndo}
         onRedo={handleRedo}

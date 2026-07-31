@@ -1,0 +1,22 @@
+/* styles.css - Heading styles for Tablord cells */
+
+.h1, td.h1 {
+  font-size: 1.8em;
+  font-weight: bold;
+  color: #1a202c;
+  margin: 4px 0;
+}
+
+.h2, td.h2 {
+  font-size: 1.4em;
+  font-weight: bold;
+  color: #2d3748;
+  margin: 3px 0;
+}
+
+.h3, td.h3 {
+  font-size: 1.15em;
+  font-weight: bold;
+  color: #4a5568;
+  margin: 2px 0;
+}
