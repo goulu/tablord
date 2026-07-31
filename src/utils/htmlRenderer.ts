@@ -51,6 +51,9 @@ export const renderMarkdownToHtml = (markdownText: string): string => {
   // Escape raw HTML first
   let html = escapeHtml(markdownText);
 
+  // Horizontal Rules: 3 or more *, -, or _ on a line by themselves (optionally separated by spaces)
+  html = html.replace(/^\s*([*\-_]\s*){3,}$/gm, '<hr/>');
+
   // Links: [label](url) -> <a href="url" target="_blank" rel="noopener noreferrer">label</a>
   html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
 

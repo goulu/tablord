@@ -19,6 +19,12 @@
   padding: 0;
 }
 
+.document td hr {
+  border: none;
+  border-top: 1px solid #cbd5e1;
+  margin: 8px 0;
+}
+
 .document td > .document,
 .document td > .document > table {
   margin: 0;
