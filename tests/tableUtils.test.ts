@@ -20,10 +20,13 @@ describe('Table navigation and cell typing logic', () => {
   it('getCellStyle and setCellStyleClass should handle heading styles correctly', () => {
     expect(getCellStyle('text h1')).toBe('h1');
     expect(getCellStyle('number h2 bold')).toBe('h2');
+    expect(getCellStyle('text h4')).toBe('h4');
+    expect(getCellStyle('text h6')).toBe('h6');
     expect(getCellStyle('text')).toBe('none');
 
     expect(setCellStyleClass('text', 'h1')).toBe('text h1');
     expect(setCellStyleClass('text h1', 'h2')).toBe('text h2');
+    expect(setCellStyleClass('text h2', 'h5')).toBe('text h5');
     expect(setCellStyleClass('bold text h3', 'none')).toBe('bold text');
   });
 

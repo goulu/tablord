@@ -4,10 +4,10 @@ import { availableImporters } from '../import';
 interface TopBarProps {
   activeCellName: string | null;
   activeCellType: 'text' | 'number' | 'formula' | undefined;
-  activeCellStyle?: 'none' | 'h1' | 'h2' | 'h3' | undefined;
+  activeCellStyle?: 'none' | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | undefined;
   onHelpClick: () => void;
   onCellTypeChange: (type: 'text' | 'number' | 'formula') => void;
-  onCellStyleChange?: (style: 'none' | 'h1' | 'h2' | 'h3') => void;
+  onCellStyleChange?: (style: 'none' | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6') => void;
   onImportFile: (importerId: string, file: File) => void;
   onUndo?: () => void;
   onRedo?: () => void;
@@ -146,6 +146,9 @@ export const TopBar: React.FC<TopBarProps> = ({
               <option value="h1">Titre 1 (h1)</option>
               <option value="h2">Titre 2 (h2)</option>
               <option value="h3">Titre 3 (h3)</option>
+              <option value="h4">Titre 4 (h4)</option>
+              <option value="h5">Titre 5 (h5)</option>
+              <option value="h6">Titre 6 (h6)</option>
             </select>
           </>
         )}

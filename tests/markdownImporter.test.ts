@@ -99,6 +99,28 @@ Content 2
     expect(subSubBody?.rows[0].cells[0].text).toBe('Content 1.1.1');
   });
 
+  it('assigns exact class hN for heading level N (h1..h6)', () => {
+    const md = `
+#### Level 4 Heading
+##### Level 5 Heading
+###### Level 6 Heading
+`;
+    const table = parseMarkdownToTable(md);
+    const h4Sec = table.rows[0].cells[0].table;
+    expect(h4Sec?.rows[0].cells[0].text).toBe('#### Level 4 Heading');
+    expect(h4Sec?.rows[0].cells[0].className).toBe('text h4');
+
+    const h4Body = h4Sec?.rows[1].cells[0].table;
+    const h5Sec = h4Body?.rows[0].cells[0].table;
+    expect(h5Sec?.rows[0].cells[0].text).toBe('##### Level 5 Heading');
+    expect(h5Sec?.rows[0].cells[0].className).toBe('text h5');
+
+    const h5Body = h5Sec?.rows[1].cells[0].table;
+    const h6Sec = h5Body?.rows[0].cells[0].table;
+    expect(h6Sec?.rows[0].cells[0].text).toBe('###### Level 6 Heading');
+    expect(h6Sec?.rows[0].cells[0].className).toBe('text h6');
+  });
+
   it('parses mixed markdown with GFM tables inside sections', () => {
     const md = `
 # Header 1

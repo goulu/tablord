@@ -5,7 +5,7 @@ import {
   handleTab, handleEnter, handleCtrlTab, handleArrow, 
   getCellType, setCellTypeClass, evaluateFormula, recalculateTable, buildValueMap,
   deleteRow, deleteColumn, deleteTable, getCellNameById, insertSubTableAtCell,
-  adjustFormulasAfterStructureChange, getCellStyle, updateCellStyleInTree
+  adjustFormulasAfterStructureChange, getCellStyle, updateCellStyleInTree, type HeadingStyle
 } from './utils/tableUtils';
 import { parseHtmlToTable } from './utils/htmlUtils';
 import { availableImporters } from './import';
@@ -433,7 +433,7 @@ function App() {
     }
   };
 
-  const handleCellStyleChange = (newStyle: 'none' | 'h1' | 'h2' | 'h3') => {
+  const handleCellStyleChange = (newStyle: HeadingStyle) => {
     if (activeCellId) {
       flushEditingSession();
       const oldTable = tableRef.current;

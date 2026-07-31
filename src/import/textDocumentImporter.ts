@@ -98,7 +98,7 @@ export abstract class TextDocumentImporter implements Importer {
    * Cell 2 (Row 2): Content cell holding bodyTable
    */
   protected createSectionTable(headingText: string, headingLevel: number, bodyTable: Table): Table {
-    const headingClass = `text h${Math.min(headingLevel, 3)}`;
+    const headingClass = `text h${headingLevel}`;
 
     const titleCell: Cell = {
       id: generateId(),
