@@ -79,6 +79,7 @@ const EditableCell = memo(({ cell, isActive, isEditingFormula, onCellClick, onCe
       contentEditable={isActive && !cell.table}
       suppressContentEditableWarning
       data-cell-id={cell.id}
+      data-text={cell.text}
       data-formula={getCellType(cell.className) === 'formula' && cell.text.startsWith('=') ? cell.text : undefined}
       dangerouslySetInnerHTML={
         !cell.table && !isActive

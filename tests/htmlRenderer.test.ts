@@ -4,6 +4,7 @@ import {
   renderMarkdownToHtml, renderCellHtml 
 } from '../src/utils/htmlRenderer';
 import { parseMarkdownToTable } from '../src/import/markdownImporter';
+import { parseHtmlToTable } from '../src/utils/htmlUtils';
 import { getCellType } from '../src/utils/tableUtils';
 
 describe('htmlRenderer format rendering functions', () => {
@@ -67,5 +68,13 @@ describe('Markdown Importer format assignment', () => {
     const quoteCell = bodyTable.rows[0].cells[0];
     expect(quoteCell.text).toBe('> Spreadsheet editor with sub-tables.');
     expect(getCellType(quoteCell.className)).toBe('markdown');
+  });
+
+  it('preserves raw markdown text and className across HTML save and reload (page refresh simulation)', () => {
+    const html = `<div class="document"><table><tbody><tr><td class="markdown h1" data-cell-id="cell1" data-text="Welcome to **Tablord**">Welcome to <strong>Tablord</strong></td></tr></tbody></table></div>`;
+    const loaded = parseHtmlToTable(html);
+    expect(loaded).not.toBeNull();
+    expect(loaded!.rows[0].cells[0].text).toBe('Welcome to **Tablord**');
+    expect(getCellType(loaded!.rows[0].cells[0].className)).toBe('markdown');
   });
 });

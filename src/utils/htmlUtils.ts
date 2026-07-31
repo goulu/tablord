@@ -3,6 +3,33 @@ import { generateId } from '../types/document';
 
 // Parse HTML string back to TableType
 export const parseHtmlToTable = (htmlString: string): Table | null => {
+  if (!htmlString || !htmlString.includes('<table')) return null;
+
+  if (typeof DOMParser === 'undefined') {
+    // Fallback for Node environment unit tests where DOMParser is not global
+    const tdMatches = [...htmlString.matchAll(/<td([^>]*)>([\s\S]*?)<\/td>/gi)];
+    if (tdMatches.length === 0) return null;
+    const cells: Cell[] = tdMatches.map(m => {
+      const attrs = m[1];
+      const inner = m[2];
+      const classMatch = attrs.match(/class="([^"]*)"/i);
+      const dataTextMatch = attrs.match(/data-text="([^"]*)"/i);
+      const dataFormulaMatch = attrs.match(/data-formula="([^"]*)"/i);
+
+      const rawText = dataTextMatch ? dataTextMatch[1] : (dataFormulaMatch ? dataFormulaMatch[1] : inner.replace(/<[^>]+>/g, '').trim());
+      return {
+        id: generateId(),
+        text: rawText,
+        className: classMatch ? classMatch[1] : 'text',
+      };
+    });
+    return {
+      id: 'document',
+      columns: ['A'],
+      rows: [{ id: generateId(), cells }],
+    };
+  }
+
   const parser = new DOMParser();
   const doc = parser.parseFromString(htmlString, 'text/html');
   const rootTable = doc.querySelector('table');
@@ -38,8 +65,9 @@ export const parseHtmlToTable = (htmlString: string): Table | null => {
         const innerDivs = clone.querySelectorAll('div.document');
         innerDivs.forEach(d => d.remove());
         const rawTextContent = clone.textContent?.trim() || '';
+        const dataTextAttr = td.getAttribute('data-text');
         const formulaAttr = td.getAttribute('data-formula');
-        const text = formulaAttr || rawTextContent;
+        const text = dataTextAttr ?? formulaAttr ?? rawTextContent;
 
         // Extract class names, excluding transient UI-only classes
         const TRANSIENT = new Set(['selected', 'formula-ref-target']);
