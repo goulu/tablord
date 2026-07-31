@@ -1,6 +1,6 @@
 import type { Table, Row, Cell } from '../types/document';
 import { generateId } from '../types/document';
-import type { Importer } from './types';
+import { TextDocumentImporter, type HeadingInfo } from './textDocumentImporter';
 
 const convertNumberToCol = (num: number): string => {
   let colName = '';
@@ -92,108 +92,82 @@ const parseGfmTable = (lines: string[]): Table => {
   };
 };
 
-export const parseMarkdownToTable = (content: string): Table => {
-  const lines = content.split(/\r?\n/);
-  const rows: Row[] = [];
+export class MarkdownImporter extends TextDocumentImporter {
+  id = 'markdown';
+  name = 'markdown (.md)';
+  fileExtensions = ['.md', '.markdown'];
 
-  let inCodeBlock = false;
-  let codeBlockBuffer: string[] = [];
+  /**
+   * Parses markdown headings like "# Title", "## Title", "### Title", etc.
+   * Number of '#' determines the heading level (1 to 6).
+   */
+  parseHeading(line: string): HeadingInfo | null {
+    const trimmed = line.trim();
+    const match = trimmed.match(/^(#{1,6})\s+(.*)$/);
+    if (match) {
+      return {
+        level: match[1].length,
+        title: trimmed,
+      };
+    }
+    return null;
+  }
 
-  let i = 0;
-  while (i < lines.length) {
+  protected override parseSingleContentItem(lines: string[], i: number, endIndex: number): { nextIndex: number; row: Row | null } {
     const line = lines[i];
 
     // Handle code blocks ``` ... ```
     if (line.trim().startsWith('```')) {
-      if (inCodeBlock) {
-        // End of code block
-        inCodeBlock = false;
-        if (codeBlockBuffer.length > 0) {
-          const text = codeBlockBuffer.join('\n');
-          rows.push({
-            id: generateId(),
-            cells: [{ id: generateId(), text, className: 'text' }],
-          });
-          codeBlockBuffer = [];
-        }
-      } else {
-        // Start of code block
-        inCodeBlock = true;
+      let j = i + 1;
+      const codeBlockBuffer: string[] = [];
+      while (j < endIndex && !lines[j].trim().startsWith('```')) {
+        codeBlockBuffer.push(lines[j]);
+        j++;
       }
-      i++;
-      continue;
+      if (j < endIndex && lines[j].trim().startsWith('```')) {
+        j++; // consume closing ```
+      }
+      const text = codeBlockBuffer.join('\n');
+      return {
+        nextIndex: j,
+        row: {
+          id: generateId(),
+          cells: [{ id: generateId(), text, className: 'text' }],
+        },
+      };
     }
 
-    if (inCodeBlock) {
-      codeBlockBuffer.push(line);
-      i++;
-      continue;
-    }
-
-    // Check if we hit a GFM Markdown Table block
+    // Handle GFM Markdown tables
     if (isTableRow(line)) {
       const tableLines: string[] = [];
-      while (i < lines.length && (isTableRow(lines[i]) || isTableSeparator(lines[i]))) {
-        tableLines.push(lines[i]);
-        i++;
+      let j = i;
+      while (j < endIndex && (isTableRow(lines[j]) || isTableSeparator(lines[j]))) {
+        tableLines.push(lines[j]);
+        j++;
       }
       const subSubTable = parseGfmTable(tableLines);
-      rows.push({
-        id: generateId(),
-        cells: [
-          {
-            id: generateId(),
-            text: '',
-            className: 'text',
-            table: subSubTable,
-          },
-        ],
-      });
-      continue;
+      return {
+        nextIndex: j,
+        row: {
+          id: generateId(),
+          cells: [
+            {
+              id: generateId(),
+              text: '',
+              className: 'text',
+              table: subSubTable,
+            },
+          ],
+        },
+      };
     }
 
-    // Regular markdown text line (heading, list item, blockquote, paragraph)
-    const trimmed = line.trim();
-    if (trimmed !== '') {
-      let className = 'text';
-      if (trimmed.startsWith('=')) {
-        className = 'formula';
-      } else if (!isNaN(Number(trimmed))) {
-        className = 'number';
-      }
-      rows.push({
-        id: generateId(),
-        cells: [
-          {
-            id: generateId(),
-            text: trimmed,
-            className,
-          },
-        ],
-      });
-    }
-
-    i++;
+    return super.parseSingleContentItem(lines, i, endIndex);
   }
+}
 
-  // Handle empty file case
-  if (rows.length === 0) {
-    rows.push({
-      id: generateId(),
-      cells: [{ id: generateId(), text: '', className: 'text' }],
-    });
-  }
+export const markdownImporter = new MarkdownImporter();
 
-  return {
-    id: generateId(),
-    columns: ['A'], // Main sub-table has 1 column, rows represent markdown lines / elements
-    rows,
-  };
-};
-
-export const markdownImporter: Importer = {
-  id: 'markdown',
-  name: 'markdown (.md)',
-  fileExtensions: ['.md', '.markdown'],
-  parse: parseMarkdownToTable,
+export const parseMarkdownToTable = (content: string): Table => {
+  return markdownImporter.parse(content);
 };
