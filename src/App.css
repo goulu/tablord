@@ -12,6 +12,21 @@
   cursor: cell;
 }
 
+/* Remove padding on cells containing a sub-table so the sub-table touches cell edges directly */
+.document td:has(.document),
+.document td:has(table),
+.document td > .document {
+  padding: 0;
+}
+
+.document td > .document,
+.document td > .document > table {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
 .document td.number {
   text-align: right;
 }

@@ -1,4 +1,24 @@
-/* styles.css - Heading styles for Tablord cells */
+/* styles.css - Heading & Sub-table layout styles for Tablord */
+
+table {
+  border-collapse: collapse;
+  border-spacing: 0px;
+}
+
+/* Remove any distance/padding between cell edges and a sub-table inside that cell */
+td:has(.document),
+td:has(table),
+td > .document {
+  padding: 0;
+}
+
+td > .document,
+td > .document > table {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
 
 .h1, td.h1 {
   font-size: 1.8em;
