@@ -6,7 +6,10 @@
 .document td {
   border: 1px solid #ccc;
   padding: 8px;
+  min-width: 60px;
+  min-height: 28px;
   vertical-align: top;
+  cursor: cell;
 }
 
 .document td.number {

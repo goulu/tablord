@@ -201,6 +201,9 @@ function App() {
       const loadedTable = parseHtmlToTable(saved);
       if (loadedTable) {
         setDocumentTable(recalculateTable(loadedTable));
+        if (loadedTable.rows.length > 0 && loadedTable.rows[0].cells.length > 0) {
+          setActiveCellId(loadedTable.rows[0].cells[0].id);
+        }
         return;
       }
     }
@@ -209,10 +212,22 @@ function App() {
       .then(res => { if (res.ok) return res.text(); throw new Error('no api'); })
       .then(html => {
         const loadedTable = parseHtmlToTable(html);
-        if (loadedTable) setDocumentTable(recalculateTable(loadedTable));
+        if (loadedTable) {
+          setDocumentTable(recalculateTable(loadedTable));
+          if (loadedTable.rows.length > 0 && loadedTable.rows[0].cells.length > 0) {
+            setActiveCellId(loadedTable.rows[0].cells[0].id);
+          }
+        }
       })
       .catch(() => {}); // silently ignore — not available on GitHub Pages
   }, []);
+
+  // Auto-select first cell if no active cell is selected
+  useEffect(() => {
+    if (!activeCellId && documentTable.rows.length > 0 && documentTable.rows[0].cells.length > 0) {
+      setActiveCellId(documentTable.rows[0].cells[0].id);
+    }
+  }, [documentTable, activeCellId]);
 
   // Persist document whenever it changes
   useEffect(() => {

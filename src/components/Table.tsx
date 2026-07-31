@@ -73,6 +73,7 @@ const EditableCell = memo(({ cell, isActive, isEditingFormula, onCellClick, onCe
   return (
     <td
       ref={tdRef}
+      tabIndex={0}
       colSpan={colSpan}
       className={`${isActive ? 'selected ' : ''}${cell.className || 'text'}${!isActive && isEditingFormula ? ' formula-ref-target' : ''}`}
       contentEditable={isActive && !cell.table}
