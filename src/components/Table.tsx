@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, memo } from 'react';
 import type { Table as TableType, Cell } from '../types/document';
+import { renderCellHtml } from '../utils/htmlRenderer';
 import '../App.css';
 
 interface TableProps {
@@ -68,8 +69,6 @@ const EditableCell = memo(({ cell, isActive, isEditingFormula, onCellClick, onCe
     }
   }, [isActive, cell.value, cell.text, cell.table]);
 
-  const displayText = isActive ? cell.text : (cell.value ?? cell.text);
-
   return (
     <td
       ref={tdRef}
@@ -82,7 +81,7 @@ const EditableCell = memo(({ cell, isActive, isEditingFormula, onCellClick, onCe
       data-formula={cell.text.startsWith('=') ? cell.text : undefined}
       dangerouslySetInnerHTML={
         !cell.table && !isActive
-          ? { __html: displayText }
+          ? { __html: renderCellHtml(cell) }
           : undefined
       }
       onInput={(e) => {

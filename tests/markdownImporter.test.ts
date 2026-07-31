@@ -78,7 +78,7 @@ Paragraph C
     // Title Level 1 (Row 1 Col B sub-table)
     const h1Sub = table.rows[0].cells[1].table;
     expect(h1Sub?.rows[0].cells[0].text).toBe('Title Level 1');
-    expect(h1Sub?.rows[0].cells[0].className).toBe('text h1');
+    expect(h1Sub?.rows[0].cells[0].className).toBe('markdown h1');
 
     // Title Level 3 in h1Body
     const h1Body = h1Sub?.rows[1].cells[0].table;
@@ -89,7 +89,7 @@ Paragraph C
 
     const h3Sub = h3Row?.cells[1].table;
     expect(h3Sub?.rows[0].cells[0].text).toBe('Title Level 3');
-    expect(h3Sub?.rows[0].cells[0].className).toBe('text h3');
+    expect(h3Sub?.rows[0].cells[0].className).toBe('markdown h3');
   });
 
   it('parses lists with marker on first item and =INC() on subsequent items', () => {

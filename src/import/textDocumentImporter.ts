@@ -17,6 +17,9 @@ export abstract class TextDocumentImporter implements Importer {
   abstract name: string;
   abstract fileExtensions: string[];
 
+  /** Default format for text content cells (e.g. 'markdown' for MarkdownImporter, 'text' for base) */
+  defaultContentFormat: 'text' | 'markdown' = 'text';
+
   /**
    * Examines a line and returns heading level & title if it's a heading, or null otherwise.
    */
@@ -92,7 +95,7 @@ export abstract class TextDocumentImporter implements Importer {
                 {
                   id: generateId(),
                   text: heading.title,
-                  className: `text ${headingClass}`,
+                  className: `${this.defaultContentFormat} ${headingClass}`,
                 },
               ],
             },
@@ -218,7 +221,7 @@ export abstract class TextDocumentImporter implements Importer {
               {
                 id: generateId(),
                 text: listItem.text,
-                className: 'text',
+                className: this.defaultContentFormat,
               },
             ],
           });
@@ -239,7 +242,7 @@ export abstract class TextDocumentImporter implements Importer {
     if (rows.length === 0) {
       rows.push({
         id: generateId(),
-        cells: [{ id: generateId(), text: '', className: 'text' }],
+        cells: [{ id: generateId(), text: '', className: this.defaultContentFormat }],
       });
     }
 
@@ -266,7 +269,7 @@ export abstract class TextDocumentImporter implements Importer {
       return { nextIndex: i + 1, row: null };
     }
 
-    let className = 'text';
+    let className: string = this.defaultContentFormat;
     if (trimmed.startsWith('=')) {
       className = 'formula';
     } else if (!isNaN(Number(trimmed))) {

@@ -507,20 +507,30 @@ export const handleArrow = (table: Table, activeCellId: string, direction: 'Arro
   return newActiveCellId;
 };
 
-export const getCellType = (className?: string): 'text' | 'number' | 'formula' => {
+export type CellType = 'text' | 'number' | 'formula' | 'markdown';
+
+export const getCellType = (className?: string): CellType => {
   if (!className) return 'text';
-  if (className.includes('formula')) return 'formula';
-  if (className.includes('number')) return 'number';
+  const classes = className.split(/\s+/);
+  if (classes.includes('markdown')) return 'markdown';
+  if (classes.includes('formula')) return 'formula';
+  if (classes.includes('number')) return 'number';
   return 'text';
 };
 
-export const setCellTypeClass = (className: string = '', newType: 'text' | 'number' | 'formula'): string => {
-  const classes = className.split(' ').filter(c => c && c !== 'text' && c !== 'number' && c !== 'formula');
-  if (newType !== 'text') {
-    classes.push(newType);
+export const setCellTypeClass = (className: string = '', newType: CellType): string => {
+  const typeClasses = ['text', 'number', 'formula', 'markdown'];
+  const classes = className.split(/\s+/).filter(Boolean);
+  const typeIdx = classes.findIndex(c => typeClasses.includes(c));
+  if (typeIdx >= 0) {
+    if (newType !== 'text') {
+      classes[typeIdx] = newType;
+    } else {
+      classes.splice(typeIdx, 1);
+      classes.push('text');
+    }
   } else {
-    // We can explicitly add 'text' for styling guarantees
-    classes.push('text');
+    classes.push(newType);
   }
   return classes.join(' ');
 };

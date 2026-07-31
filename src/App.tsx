@@ -5,7 +5,7 @@ import {
   handleTab, handleEnter, handleCtrlTab, handleArrow, 
   getCellType, setCellTypeClass, evaluateFormula, recalculateTable, buildValueMap,
   deleteRow, deleteColumn, deleteTable, getCellNameById, insertSubTableAtCell,
-  adjustFormulasAfterStructureChange, getCellStyle, updateCellStyleInTree, type HeadingStyle
+  adjustFormulasAfterStructureChange, getCellStyle, updateCellStyleInTree, type HeadingStyle, type CellType
 } from './utils/tableUtils';
 import { parseHtmlToTable } from './utils/htmlUtils';
 import { availableImporters } from './import';
@@ -56,7 +56,7 @@ const updateCellText = (table: TableType, cellId: string, newText: string): Tabl
   return recalculateTable(updated);
 };
 
-const updateCellTypeInTree = (table: TableType, cellId: string, newType: 'text' | 'number' | 'formula'): TableType => {
+const updateCellTypeInTree = (table: TableType, cellId: string, newType: CellType): TableType => {
   return {
     ...table,
     rows: table.rows.map((row) => ({
@@ -431,7 +431,7 @@ function App() {
     activeTd.focus();
   }, [activeCellId, documentTable]);
 
-  const handleCellTypeChange = (newType: 'text' | 'number' | 'formula') => {
+  const handleCellTypeChange = (newType: CellType) => {
     if (activeCellId) {
       flushEditingSession();
       const oldTable = tableRef.current;

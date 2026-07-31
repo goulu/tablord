@@ -60,7 +60,7 @@ const parseGfmTable = (lines: string[]): Table => {
     const cells: Cell[] = [];
     for (let colIdx = 0; colIdx < maxCols; colIdx++) {
       const text = rowCells[colIdx] ?? '';
-      let className = 'text';
+      let className = 'markdown';
       if (text.startsWith('=')) {
         className = 'formula';
       } else if (text !== '' && !isNaN(Number(text))) {
@@ -81,7 +81,7 @@ const parseGfmTable = (lines: string[]): Table => {
   if (rows.length === 0) {
     rows.push({
       id: generateId(),
-      cells: [{ id: generateId(), text: '', className: 'text' }],
+      cells: [{ id: generateId(), text: '', className: 'markdown' }],
     });
   }
 
@@ -96,6 +96,8 @@ export class MarkdownImporter extends TextDocumentImporter {
   id = 'markdown';
   name = 'markdown (.md)';
   fileExtensions = ['.md', '.markdown'];
+
+  override defaultContentFormat: 'text' | 'markdown' = 'markdown';
 
   /**
    * Parses markdown headings like "# Title", "## Title", "### Title", etc.
@@ -162,7 +164,7 @@ export class MarkdownImporter extends TextDocumentImporter {
         row: {
           id: generateId(),
           cells: [
-            { id: generateId(), text, className: 'text' },
+            { id: generateId(), text, className: 'markdown' },
           ],
         },
       };
