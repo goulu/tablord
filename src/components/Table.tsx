@@ -116,9 +116,9 @@ const EditableCell = memo(({ cell, isActive, isEditingFormula, onCellClick, onCe
         }
       }}
       onClick={(e) => {
+        e.stopPropagation();
         if (isEditingFormula && !isActive) {
           e.preventDefault();
-          e.stopPropagation();
           onCellRefClick?.(cell.id);
           return;
         }

@@ -222,13 +222,6 @@ function App() {
       .catch(() => {}); // silently ignore — not available on GitHub Pages
   }, []);
 
-  // Auto-select first cell if no active cell is selected
-  useEffect(() => {
-    if (!activeCellId && documentTable.rows.length > 0 && documentTable.rows[0].cells.length > 0) {
-      setActiveCellId(documentTable.rows[0].cells[0].id);
-    }
-  }, [documentTable, activeCellId]);
-
   // Persist document whenever it changes
   useEffect(() => {
     const STORAGE_KEY = 'tablord_document';
