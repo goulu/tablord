@@ -61,9 +61,7 @@ const parseGfmTable = (lines: string[]): Table => {
     for (let colIdx = 0; colIdx < maxCols; colIdx++) {
       const text = rowCells[colIdx] ?? '';
       let className = 'markdown';
-      if (text.startsWith('=')) {
-        className = 'formula';
-      } else if (text !== '' && !isNaN(Number(text))) {
+      if (text !== '' && !isNaN(Number(text))) {
         className = 'number';
       }
       cells.push({

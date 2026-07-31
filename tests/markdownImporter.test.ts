@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { parseMarkdownToTable } from '../src/import/markdownImporter';
 import { TextDocumentImporter, type HeadingInfo } from '../src/import/textDocumentImporter';
+import { getCellType } from '../src/utils/tableUtils';
 
 // Dummy concrete class to test TextDocumentImporter directly
 class DummyTextImporter extends TextDocumentImporter {
@@ -147,5 +148,19 @@ Another paragraph text.
     expect(table.columns).toEqual(['A']);
     expect(table.rows.length).toBe(1);
     expect(table.rows[0].cells[0].text).toBe('');
+  });
+
+  it('keeps markdown format for content lines starting with = instead of auto-converting to formula', () => {
+    const md = `
+=2 + 3 -> 5
+=Expression starting with =
+`;
+    const table = parseMarkdownToTable(md);
+    expect(table.rows.length).toBe(2);
+    expect(table.rows[0].cells[0].text).toBe('=2 + 3 -> 5');
+    expect(getCellType(table.rows[0].cells[0].className)).toBe('markdown');
+
+    expect(table.rows[1].cells[0].text).toBe('=Expression starting with =');
+    expect(getCellType(table.rows[1].cells[0].className)).toBe('markdown');
   });
 });

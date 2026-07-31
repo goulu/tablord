@@ -270,9 +270,7 @@ export abstract class TextDocumentImporter implements Importer {
     }
 
     let className: string = this.defaultContentFormat;
-    if (trimmed.startsWith('=')) {
-      className = 'formula';
-    } else if (!isNaN(Number(trimmed))) {
+    if (!isNaN(Number(trimmed))) {
       className = 'number';
     }
 
