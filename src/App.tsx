@@ -26,22 +26,26 @@ const updateCellText = (table: TableType, cellId: string, newText: string): Tabl
       ...row,
       cells: row.cells.map((cell) => {
         if (cell.id === cellId) {
-          // Detect formula — always keep class as 'formula'
-          if (newText.startsWith('=')) {
+          const currentType = getCellType(cell.className);
+          if (currentType === 'formula' && newText.startsWith('=')) {
             const visualName = getCellNameById(table, cellId) || '';
             const evaluated = evaluateFormula(newText, visualName, valueMap);
             return { ...cell, text: newText, value: evaluated, className: setCellTypeClass(cell.className, 'formula') };
           }
-          // Auto-detect number
-          let newTypeStr = getCellType(cell.className) === 'formula' ? 'text' : getCellType(cell.className);
-          if (newText.trim() !== '') {
+          if (currentType === 'markdown') {
+            return { ...cell, text: newText, value: undefined, className: cell.className };
+          }
+          let newTypeStr: CellType = currentType === 'formula' ? 'text' : currentType;
+          if (newText.startsWith('=')) {
+            newTypeStr = 'formula';
+          } else if (newText.trim() !== '') {
             if (!isNaN(Number(newText))) {
               newTypeStr = 'number';
             } else if (newTypeStr === 'number') {
-               newTypeStr = 'text';
+              newTypeStr = 'text';
             }
           } else {
-             newTypeStr = 'text';
+            newTypeStr = 'text';
           }
           return { ...cell, text: newText, value: undefined, className: setCellTypeClass(cell.className, newTypeStr) };
         }
@@ -454,7 +458,7 @@ function App() {
   const activeCellProps = activeCellId ? findActiveCell(documentTable, activeCellId) : null;
   const activeCellType = getCellType(activeCellProps?.className);
   const activeCellStyle = getCellStyle(activeCellProps?.className);
-  const isEditingFormula = (activeCellProps?.text ?? '').startsWith('=');
+  const isEditingFormula = getCellType(activeCellProps?.className) === 'formula' && (activeCellProps?.text ?? '').startsWith('=');
   
   const activeCellName = activeCellId ? getCellNameById(documentTable, activeCellId) : null;
 

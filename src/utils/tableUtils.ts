@@ -787,7 +787,8 @@ export const recalculateTable = (table: Table): Table => {
         const colName = t.columns[cIdx];
         const cellName = `${prefix}${colName}.${rIdx + 1}`;
         
-        if (cell.text.startsWith('=')) {
+        const isFormulaCell = getCellType(cell.className) === 'formula';
+        if (isFormulaCell && cell.text.startsWith('=')) {
           formulaCells.push({ id: cell.id, name: cellName, formula: cell.text });
           valueMap[cellName] = cell.value ?? '';   // seed with previous value
         } else {
@@ -874,7 +875,8 @@ export const recalculateTable = (table: Table): Table => {
     rows: t.rows.map(row => ({
       ...row,
       cells: row.cells.map(cell => {
-        if (cell.text.startsWith('=')) {
+        const isFormulaCell = getCellType(cell.className) === 'formula';
+        if (isFormulaCell && cell.text.startsWith('=')) {
           // It's a formula, look up the name to get the evaluated value
           const visualName = idToName.get(cell.id);
           const computedValue = visualName ? valueMap[visualName] : '#ERROR';
