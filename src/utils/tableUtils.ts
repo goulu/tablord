@@ -295,44 +295,95 @@ export const handleCtrlTab = (table: Table, activeCellId: string): { newTable: T
   return { newTable, newActiveCellId };
 };
 
+export const createEmptyDocument = (): Table => ({
+  id: "document",
+  columns: ["A"],
+  rows: [
+    {
+      id: generateId(),
+      cells: [
+        {
+          id: generateId(),
+          text: "",
+          className: "text",
+        },
+      ],
+    },
+  ],
+});
+
 export const deleteRow = (table: Table, cellId: string): Table => {
-  const traverse = (t: Table): Table => {
-    // If the cell is in this table, remove its row
+  const isCellInTable = (tbl: Table, targetId: string): boolean => {
+    for (const r of tbl.rows) {
+      for (const c of r.cells) {
+        if (c.id === targetId) return true;
+        if (c.table && isCellInTable(c.table, targetId)) return true;
+      }
+    }
+    return false;
+  };
+
+  const traverse = (t: Table, isRoot: boolean): { table: Table; deletedSubtable?: boolean } => {
     const targetRowIdx = t.rows.findIndex(r => r.cells.some(c => c.id === cellId));
     if (targetRowIdx !== -1) {
-      if (t.rows.length <= 1) return t; // Don't delete last row
+      if (t.rows.length <= 1) {
+        if (isRoot) {
+          return { table: createEmptyDocument() };
+        } else {
+          return { table: t, deletedSubtable: true };
+        }
+      }
       const newRows = [...t.rows];
       newRows.splice(targetRowIdx, 1);
-      return { ...t, rows: newRows };
+      return { table: { ...t, rows: newRows } };
     }
-    // Else recurse
+
     let modified = false;
     const newRows = t.rows.map(row => {
       let rowModified = false;
       const newCells = row.cells.map(cell => {
-        if (cell.table) {
-          const newSubTable = traverse(cell.table);
-          if (newSubTable !== cell.table) {
-            rowModified = true;
-            return { ...cell, table: newSubTable };
+        if (cell.table && isCellInTable(cell.table, cellId)) {
+          const res = traverse(cell.table, false);
+          rowModified = true;
+          if (res.deletedSubtable) {
+            return { ...cell, table: undefined };
           }
+          return { ...cell, table: res.table };
         }
         return cell;
       });
       if (rowModified) modified = true;
       return rowModified ? { ...row, cells: newCells } : row;
     });
-    return modified ? { ...t, rows: newRows } : t;
+
+    return { table: modified ? { ...t, rows: newRows } : t };
   };
-  return traverse(table);
+
+  return traverse(table, true).table;
 };
 
 export const deleteColumn = (table: Table, cellId: string): Table => {
-  const traverse = (t: Table): Table => {
+  const isCellInTable = (tbl: Table, targetId: string): boolean => {
+    for (const r of tbl.rows) {
+      for (const c of r.cells) {
+        if (c.id === targetId) return true;
+        if (c.table && isCellInTable(c.table, targetId)) return true;
+      }
+    }
+    return false;
+  };
+
+  const traverse = (t: Table, isRoot: boolean): { table: Table; deletedSubtable?: boolean } => {
     const targetRow = t.rows.find(r => r.cells.some(c => c.id === cellId));
     if (targetRow) {
       const targetColIdx = targetRow.cells.findIndex(c => c.id === cellId);
-      if (t.columns.length <= 1) return t; // Don't delete last column
+      if (t.columns.length <= 1) {
+        if (isRoot) {
+          return { table: createEmptyDocument() };
+        } else {
+          return { table: t, deletedSubtable: true };
+        }
+      }
       const newCols = [...t.columns];
       newCols.splice(targetColIdx, 1);
       const newRows = t.rows.map(r => {
@@ -340,63 +391,61 @@ export const deleteColumn = (table: Table, cellId: string): Table => {
         newCells.splice(targetColIdx, 1);
         return { ...r, cells: newCells };
       });
-      return { ...t, columns: newCols, rows: newRows };
+      return { table: { ...t, columns: newCols, rows: newRows } };
     }
+
     let modified = false;
     const newRows = t.rows.map(row => {
       let rowModified = false;
       const newCells = row.cells.map(cell => {
-        if (cell.table) {
-          const newSubTable = traverse(cell.table);
-          if (newSubTable !== cell.table) {
-            rowModified = true;
-            return { ...cell, table: newSubTable };
+        if (cell.table && isCellInTable(cell.table, cellId)) {
+          const res = traverse(cell.table, false);
+          rowModified = true;
+          if (res.deletedSubtable) {
+            return { ...cell, table: undefined };
           }
+          return { ...cell, table: res.table };
         }
         return cell;
       });
       if (rowModified) modified = true;
       return rowModified ? { ...row, cells: newCells } : row;
     });
-    return modified ? { ...t, rows: newRows } : t;
+
+    return { table: modified ? { ...t, rows: newRows } : t };
   };
-  return traverse(table);
+
+  return traverse(table, true).table;
 };
 
 export const deleteTable = (table: Table, cellId: string): Table => {
+  const isCellInTable = (tbl: Table, targetId: string): boolean => {
+    for (const r of tbl.rows) {
+      for (const c of r.cells) {
+        if (c.id === targetId) return true;
+        if (c.table && isCellInTable(c.table, targetId)) return true;
+      }
+    }
+    return false;
+  };
+
+  let foundInSubtable = false;
+
   const traverse = (t: Table): Table => {
     let modified = false;
     const newRows = t.rows.map(row => {
       let rowModified = false;
       const newCells = row.cells.map(cell => {
-        // If THIS cell's table contains the currently right-clicked cell
-        if (cell.table) {
-          const tableContainsCell = (() => {
-            let found = false;
-            const search = (tbl: Table) => {
-              for (const r of tbl.rows) {
-                for (const c of r.cells) {
-                  if (c.id === cellId) found = true;
-                  if (c.table && !found) search(c.table);
-                }
-              }
-            };
-            search(cell.table);
-            return found;
-          })();
-
-          if (tableContainsCell && cell.table.id === getTablePrefix(cellId)) {
-             // If we found the exact cell inside this cell.table, and the cell is at the top level of THIS table.
-             // Actually, the simplest rule: The user right-clicked a cell. We want to delete the sub-table that contains this cell.
-             // Wait, the specification is "supprimer la ligne, la colonne ou la table". If the cell is in a sub-table, delete the sub-table. If it's the root table, maybe we can't delete it.
-             rowModified = true;
-             return { ...cell, table: undefined }; 
+        if (cell.table && isCellInTable(cell.table, cellId)) {
+          const inNested = cell.table.rows.some(r => r.cells.some(c => c.table && isCellInTable(c.table, cellId)));
+          if (inNested) {
+            const newSub = traverse(cell.table);
+            rowModified = true;
+            return { ...cell, table: newSub };
           } else {
-             const newSubTable = traverse(cell.table);
-             if (newSubTable !== cell.table) {
-               rowModified = true;
-               return { ...cell, table: newSubTable };
-             }
+            foundInSubtable = true;
+            rowModified = true;
+            return { ...cell, table: undefined };
           }
         }
         return cell;
@@ -406,7 +455,17 @@ export const deleteTable = (table: Table, cellId: string): Table => {
     });
     return modified ? { ...t, rows: newRows } : t;
   };
-  return traverse(table);
+
+  const result = traverse(table);
+  if (foundInSubtable) {
+    return result;
+  }
+
+  if (isCellInTable(table, cellId)) {
+    return createEmptyDocument();
+  }
+
+  return table;
 };
 
 export const handleArrow = (table: Table, activeCellId: string, direction: 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight'): string => {

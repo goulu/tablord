@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { initialDocument } from '../src/types/document';
-import { handleTab, handleEnter, getCellType, setCellTypeClass, getCellNameById } from '../src/utils/tableUtils';
+import { handleTab, handleEnter, getCellType, setCellTypeClass, getCellNameById, deleteRow, deleteColumn, deleteTable } from '../src/utils/tableUtils';
 
 describe('Table navigation and cell typing logic', () => {
 
@@ -75,6 +75,29 @@ describe('Table navigation and cell typing logic', () => {
     expect(getCellNameById(doc, b2.id)).toBe("B.2");
     expect(b2.text).toBe("");
     expect(b2.className).toContain("text");
+  });
+
+  it('deleting table on root table empties document to a single cell', () => {
+    const doc = { ...initialDocument };
+    const cellId = doc.rows[0].cells[0].id;
+    const result = deleteTable(doc, cellId);
+    expect(result.columns).toEqual(['A']);
+    expect(result.rows.length).toBe(1);
+    expect(result.rows[0].cells.length).toBe(1);
+    expect(result.rows[0].cells[0].text).toBe('');
+  });
+
+  it('deleting single remaining column or row on root table empties document to a single cell', () => {
+    const doc = { ...initialDocument };
+    const cellId = doc.rows[0].cells[0].id;
+    
+    const delCol = deleteColumn(doc, cellId);
+    expect(delCol.columns).toEqual(['A']);
+    expect(delCol.rows.length).toBe(1);
+
+    const delRow = deleteRow(doc, cellId);
+    expect(delRow.columns).toEqual(['A']);
+    expect(delRow.rows.length).toBe(1);
   });
 
 });
