@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef, memo } from 'react';
+import React, { useLayoutEffect, useRef, memo } from 'react';
 import type { Table as TableType, Cell } from '../types/document';
 import { renderCellHtml } from '../utils/htmlRenderer';
 import { getCellType } from '../utils/tableUtils';
@@ -59,16 +59,6 @@ const EditableCell = memo(({ cell, isActive, isEditingFormula, onCellClick, onCe
       td.focus();
     }
   }, [isActive, cell.id, cell.text]);
-
-  useEffect(() => {
-    const td = tdRef.current;
-    if (td && !isActive && !cell.table) {
-      const displayText = cell.value ?? cell.text;
-      if (td.textContent !== displayText) {
-        td.textContent = displayText;
-      }
-    }
-  }, [isActive, cell.value, cell.text, cell.table]);
 
   return (
     <td

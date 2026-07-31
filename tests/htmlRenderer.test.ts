@@ -27,6 +27,7 @@ describe('htmlRenderer format rendering functions', () => {
     expect(renderMarkdownToHtml('*italic text*')).toBe('<em>italic text</em>');
     expect(renderMarkdownToHtml('`const x = 10;`')).toBe('<code>const x = 10;</code>');
     expect(renderMarkdownToHtml('[Tablord](https://example.com)')).toBe('<a href="https://example.com" target="_blank" rel="noopener noreferrer">Tablord</a>');
+    expect(renderMarkdownToHtml('🌐 **[Try it online → https://goulu.github.io/tablord/](https://goulu.github.io/tablord/)**')).toBe('🌐 <strong><a href="https://goulu.github.io/tablord/" target="_blank" rel="noopener noreferrer">Try it online → https://goulu.github.io/tablord/</a></strong>');
     expect(renderMarkdownToHtml('~~deleted~~')).toBe('<del>deleted</del>');
     expect(renderMarkdownToHtml('> quote line')).toBe('<blockquote>quote line</blockquote>');
     expect(renderMarkdownToHtml('line 1\nline 2')).toBe('line 1<br/>line 2');

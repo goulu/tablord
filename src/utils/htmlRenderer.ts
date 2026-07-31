@@ -51,6 +51,9 @@ export const renderMarkdownToHtml = (markdownText: string): string => {
   // Escape raw HTML first
   let html = escapeHtml(markdownText);
 
+  // Links: [label](url) -> <a href="url" target="_blank" rel="noopener noreferrer">label</a>
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+
   // Inline code: `code` -> <code>code</code>
   html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
 
@@ -66,8 +69,16 @@ export const renderMarkdownToHtml = (markdownText: string): string => {
   // Strikethrough: ~~text~~ -> <del>text</del>
   html = html.replace(/~~(.*?)~~/g, '<del>$1</del>');
 
-  // Links: [label](url) -> <a href="url" target="_blank" rel="noopener noreferrer">label</a>
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+  // Auto-link bare URLs (not inside an existing <a> tag)
+  html = html.replace(/(^|[^">])(https?:\/\/[^\s<)]+)/g, (match, prefix, url, offset, string) => {
+    const before = string.slice(0, offset);
+    const lastOpenA = before.lastIndexOf('<a ');
+    const lastCloseA = before.lastIndexOf('</a>');
+    if (lastOpenA > lastCloseA) {
+      return match;
+    }
+    return `${prefix}<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+  });
 
   // Blockquotes: > line
   html = html.replace(/^&gt;\s+(.*)$/gm, '<blockquote>$1</blockquote>');
