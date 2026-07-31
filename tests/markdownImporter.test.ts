@@ -82,7 +82,8 @@ Paragraph C
 
     // Title Level 3 in h1Body
     const h1Body = h1Sub?.rows[1].cells[0].table;
-    const h3Row = h1Body?.rows[0];
+    const level3Container = h1Body?.rows[0].cells[0].table;
+    const h3Row = level3Container?.rows[0];
     expect(h3Row?.cells[0].text).toBe('=INC()');
     expect(h3Row?.cells[0].className).toBe('formula h3');
 

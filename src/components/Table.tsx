@@ -28,10 +28,11 @@ interface EditableCellProps {
   onDeselect?: () => void;
   onCellRefClick?: (cellId: string) => void;
   onCellContextMenu?: (e: React.MouseEvent, cellId: string) => void;
+  colSpan?: number;
   children?: React.ReactNode; // nested Table for cells with sub-tables
 }
 
-const EditableCell = memo(({ cell, isActive, isEditingFormula, onCellClick, onCellInput, onDeselect, onCellRefClick, onCellContextMenu, children }: EditableCellProps) => {
+const EditableCell = memo(({ cell, isActive, isEditingFormula, onCellClick, onCellInput, onDeselect, onCellRefClick, onCellContextMenu, colSpan, children }: EditableCellProps) => {
   const tdRef = useRef<HTMLTableCellElement>(null);
   const originalTextRef = useRef<string>(''); // captured on activation
 
@@ -72,6 +73,7 @@ const EditableCell = memo(({ cell, isActive, isEditingFormula, onCellClick, onCe
   return (
     <td
       ref={tdRef}
+      colSpan={colSpan}
       className={`${isActive ? 'selected ' : ''}${cell.className || 'text'}${!isActive && isEditingFormula ? ' formula-ref-target' : ''}`}
       contentEditable={isActive && !cell.table}
       suppressContentEditableWarning
@@ -98,35 +100,26 @@ const EditableCell = memo(({ cell, isActive, isEditingFormula, onCellClick, onCe
           e.preventDefault();
           e.stopPropagation();
           const td = tdRef.current;
-          const original = originalTextRef.current;
           if (td) {
-            td.textContent = original;
-            td.blur();
+            td.textContent = originalTextRef.current;
+            onCellInput(cell.id, originalTextRef.current);
           }
-          onCellInput(cell.id, original);
           onDeselect?.();
           return;
         }
-        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-          const sel = window.getSelection();
-          if (sel && sel.rangeCount > 0) {
-            const range = sel.getRangeAt(0);
-            const pos = range.startOffset;
-            const textLen = tdRef.current?.textContent?.length || 0;
-            if (e.key === 'ArrowLeft' && pos > 0) {
-              e.stopPropagation();
-            } else if (e.key === 'ArrowRight' && pos < textLen) {
-              e.stopPropagation();
-            }
-          }
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          e.stopPropagation();
+          onDeselect?.();
+          return;
         }
       }}
       onClick={(e) => {
-        e.stopPropagation();
-        // While editing a formula, clicking a non-active cell inserts/cycles a reference
         if (isEditingFormula && !isActive) {
+          e.preventDefault();
+          e.stopPropagation();
           onCellRefClick?.(cell.id);
-          return; // don't switch active cell
+          return;
         }
         onCellClick(cell.id);
       }}
@@ -157,40 +150,45 @@ export const Table: React.FC<TableProps> = ({
     <div className="document">
       <table className={isInnermostSelectedTable ? 'selected' : ''}>
         <tbody>
-          {table.rows.map((row) => (
-            <tr key={row.id}>
-              {row.cells.map((cell) => {
-                const isActive = cell.id === activeCellId;
-                return (
-                  <EditableCell
-                    key={cell.id}
-                    cell={cell}
-                    isActive={isActive}
-                    isEditingFormula={isEditingFormula}
-                    onCellClick={onCellClick}
-                    onCellInput={onCellInput}
-                    onDeselect={onDeselect}
-                    onCellRefClick={onCellRefClick}
-                    onCellContextMenu={onCellContextMenu}
-                  >
-                    {cell.table && (
-                      <Table
-                        table={cell.table}
-                        activeCellId={activeCellId}
-                        onCellClick={onCellClick}
-                        onCellInput={onCellInput}
-                        onDeselect={onDeselect}
-                        isEditingFormula={isEditingFormula}
-                        onCellRefClick={onCellRefClick}
-                        onCellContextMenu={onCellContextMenu}
-                        depth={depth + 1}
-                      />
-                    )}
-                  </EditableCell>
-                );
-              })}
-            </tr>
-          ))}
+          {table.rows.map((row) => {
+            const isSingleCellRow = row.cells.length === 1 && table.columns.length > 1;
+            const colSpan = isSingleCellRow ? table.columns.length : undefined;
+            return (
+              <tr key={row.id}>
+                {row.cells.map((cell) => {
+                  const isActive = cell.id === activeCellId;
+                  return (
+                    <EditableCell
+                      key={cell.id}
+                      cell={cell}
+                      isActive={isActive}
+                      isEditingFormula={isEditingFormula}
+                      onCellClick={onCellClick}
+                      onCellInput={onCellInput}
+                      onDeselect={onDeselect}
+                      onCellRefClick={onCellRefClick}
+                      onCellContextMenu={onCellContextMenu}
+                      colSpan={colSpan}
+                    >
+                      {cell.table && (
+                        <Table
+                          table={cell.table}
+                          activeCellId={activeCellId}
+                          onCellClick={onCellClick}
+                          onCellInput={onCellInput}
+                          onDeselect={onDeselect}
+                          isEditingFormula={isEditingFormula}
+                          onCellRefClick={onCellRefClick}
+                          onCellContextMenu={onCellContextMenu}
+                          depth={depth + 1}
+                        />
+                      )}
+                    </EditableCell>
+                  );
+                })}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
