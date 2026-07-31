@@ -132,7 +132,10 @@ export class MarkdownImporter extends TextDocumentImporter {
         nextIndex: j,
         row: {
           id: generateId(),
-          cells: [{ id: generateId(), text, className: 'text' }],
+          cells: [
+            { id: generateId(), text: '', className: 'text' },
+            { id: generateId(), text, className: 'text' },
+          ],
         },
       };
     }
@@ -151,6 +154,7 @@ export class MarkdownImporter extends TextDocumentImporter {
         row: {
           id: generateId(),
           cells: [
+            { id: generateId(), text: '', className: 'text' },
             {
               id: generateId(),
               text: '',
