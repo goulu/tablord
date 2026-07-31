@@ -93,20 +93,34 @@ export abstract class TextDocumentImporter implements Importer {
   }
 
   /**
-   * Creates a sub-table with exactly two cells for a section:
-   * Cell 1 (Row 1): Title cell with heading class (h1, h2, h3...)
-   * Cell 2 (Row 2): Content cell holding bodyTable
+   * Creates a 2x2 sub-table for a section:
+   * - Top-left (Row 1, Col A): contains "=INC()", className: "formula hN"
+   * - Top-right (Row 1, Col B): contains heading text, className: "text hN"
+   * - Bottom-left (Row 2, Col A): empty cell
+   * - Bottom-right (Row 2, Col B): contains bodyTable
    */
   protected createSectionTable(headingText: string, headingLevel: number, bodyTable: Table): Table {
-    const headingClass = `text h${headingLevel}`;
+    const headingClass = `h${headingLevel}`;
 
-    const titleCell: Cell = {
+    const topLeftCell: Cell = {
       id: generateId(),
-      text: headingText.trim(),
-      className: headingClass,
+      text: '=INC()',
+      className: `formula ${headingClass}`,
     };
 
-    const contentCell: Cell = {
+    const topRightCell: Cell = {
+      id: generateId(),
+      text: headingText.trim(),
+      className: `text ${headingClass}`,
+    };
+
+    const bottomLeftCell: Cell = {
+      id: generateId(),
+      text: '',
+      className: 'text',
+    };
+
+    const bottomRightCell: Cell = {
       id: generateId(),
       text: '',
       className: 'text',
@@ -115,10 +129,16 @@ export abstract class TextDocumentImporter implements Importer {
 
     return {
       id: generateId(),
-      columns: ['A'],
+      columns: ['A', 'B'],
       rows: [
-        { id: generateId(), cells: [titleCell] },
-        { id: generateId(), cells: [contentCell] },
+        {
+          id: generateId(),
+          cells: [topLeftCell, topRightCell],
+        },
+        {
+          id: generateId(),
+          cells: [bottomLeftCell, bottomRightCell],
+        },
       ],
     };
   }
