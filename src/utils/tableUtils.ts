@@ -668,10 +668,10 @@ export const evaluateFormula = (
   valueMap: Record<string, string> = {}
 ): string => {
   try {
-    const { COLUMN, ROW, NAME, REF, SUM } = makeFunctions(cellName, (name) => valueMap[name] ?? '', valueMap);
+    const { COLUMN, ROW, NAME, REF, SUM, INC } = makeFunctions(cellName, (name) => valueMap[name] ?? '', valueMap);
     const processed = preprocessCellRefs(formula, cellName); // pass visual cellName for local ref resolution
     // eslint-disable-next-line no-new-func
-    const result = Function('COLUMN', 'ROW', 'NAME', 'REF', 'SUM', '"use strict"; return (' + processed.slice(1) + ')')(COLUMN, ROW, NAME, REF, SUM);
+    const result = Function('COLUMN', 'ROW', 'NAME', 'REF', 'SUM', 'INC', '"use strict"; return (' + processed.slice(1) + ')')(COLUMN, ROW, NAME, REF, SUM, INC);
     return String(result);
   } catch {
     return '#ERROR';
@@ -727,6 +727,41 @@ const getSumDependencies = (processed: string, currentName: string, allNames: st
   return deps;
 };
 
+// Helper to resolve all dependencies for INC() and INC(target)
+const getIncDependencies = (processed: string, currentName: string, allNames: string[]): string[] => {
+  const deps: string[] = [];
+  const parseCellId = (id: string) => {
+    const match = id.match(/^(.*\.)?([A-Z]+)\.(\d+)$/);
+    if (!match) return null;
+    return {
+      prefix: match[1] || '',
+      col: match[2],
+      row: parseInt(match[3], 10)
+    };
+  };
+
+  const current = parseCellId(currentName);
+  if (!current) return deps;
+
+  const incRegex = /INC\((?:\s*"([^"]+)"\s*)?\)/g;
+  for (const m of processed.matchAll(incRegex)) {
+    const targetCell = m[1];
+    if (targetCell) {
+      if (allNames.includes(targetCell)) {
+        deps.push(targetCell);
+      }
+    } else {
+      for (let r = current.row - 1; r >= 1; r--) {
+        const candidate = `${current.prefix}${current.col}.${r}`;
+        if (allNames.includes(candidate)) {
+          deps.push(candidate);
+        }
+      }
+    }
+  }
+  return deps;
+};
+
 /**
  * Recalculate all formula cells in dependency order (topological sort).
  * Formula cells that form a cycle are marked with #CIRCULAR.
@@ -773,6 +808,11 @@ export const recalculateTable = (table: Table): Table => {
 
     const sumDeps = getSumDependencies(processed, name, allNames);
     for (const dep of sumDeps) {
+       if (formulaNames.has(dep)) refs.add(dep);
+    }
+
+    const incDeps = getIncDependencies(processed, name, allNames);
+    for (const dep of incDeps) {
        if (formulaNames.has(dep)) refs.add(dep);
     }
     deps.set(name, refs);
