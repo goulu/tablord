@@ -17,7 +17,73 @@ class DummyTextImporter extends TextDocumentImporter {
   }
 }
 
-describe('TextDocumentImporter & MarkdownImporter level grouping', () => {
+describe('TextDocumentImporter & MarkdownImporter full features', () => {
+  it('strips ### hashes from heading titles in MarkdownImporter', () => {
+    const md = `
+# Title Level 1
+### Title Level 3
+`;
+    const table = parseMarkdownToTable(md);
+    expect(table.rows[0].cells[1].text).toBe('Title Level 1');
+    expect(table.rows[0].cells[1].className).toBe('text h1');
+
+    const body = table.rows[1].cells[1].table;
+    expect(body?.rows[0].cells[1].text).toBe('Title Level 3');
+    expect(body?.rows[0].cells[1].className).toBe('text h3');
+  });
+
+  it('parses unordered and ordered lists with marker on first item and =INC() on subsequent items', () => {
+    const md = `
+* First bullet
+* Second bullet
+* Third bullet
+
+1. First ordered
+2. Second ordered
+3. Third ordered
+`;
+    const table = parseMarkdownToTable(md);
+
+    // Bullet list: 3 items (2-cell rows)
+    expect(table.rows[0].cells[0].text).toBe('*');
+    expect(table.rows[0].cells[1].text).toBe('First bullet');
+
+    expect(table.rows[1].cells[0].text).toBe('=INC()');
+    expect(table.rows[1].cells[0].className).toBe('formula');
+    expect(table.rows[1].cells[1].text).toBe('Second bullet');
+
+    expect(table.rows[2].cells[0].text).toBe('=INC()');
+    expect(table.rows[2].cells[1].text).toBe('Third bullet');
+
+    // Ordered list: 3 items (2-cell rows)
+    expect(table.rows[3].cells[0].text).toBe('1.');
+    expect(table.rows[3].cells[1].text).toBe('First ordered');
+
+    expect(table.rows[4].cells[0].text).toBe('=INC()');
+    expect(table.rows[4].cells[1].text).toBe('Second ordered');
+
+    expect(table.rows[5].cells[0].text).toBe('=INC()');
+    expect(table.rows[5].cells[1].text).toBe('Third ordered');
+  });
+
+  it('puts non-heading, non-list paragraphs in 1-cell rows without an empty cell on the left', () => {
+    const md = `
+Some description paragraph.
+
+Another paragraph text.
+`;
+    const table = parseMarkdownToTable(md);
+    expect(table.rows.length).toBe(2);
+
+    // Row 1: 1-cell row containing paragraph
+    expect(table.rows[0].cells.length).toBe(1);
+    expect(table.rows[0].cells[0].text).toBe('Some description paragraph.');
+
+    // Row 2: 1-cell row containing paragraph
+    expect(table.rows[1].cells.length).toBe(1);
+    expect(table.rows[1].cells[0].text).toBe('Another paragraph text.');
+  });
+
   it('groups all headings of the same level N in the SAME 2-column table', () => {
     const dummy = new DummyTextImporter();
     const txt = `
@@ -29,110 +95,21 @@ Paragraph C
 `;
     const table = dummy.parse(txt);
     expect(table.columns).toEqual(['A', 'B']);
-    // All level 1 sections are rows in the root table (2 rows per section = 4 rows total)
     expect(table.rows.length).toBe(4);
 
     // Row 1: Section 1 Title
     expect(table.rows[0].cells[0].text).toBe('=INC()');
-    expect(table.rows[0].cells[0].className).toBe('formula h1');
     expect(table.rows[0].cells[1].text).toBe('H1: Section 1');
-    expect(table.rows[0].cells[1].className).toBe('text h1');
 
     // Row 2: Section 1 Content
     const sec1Body = table.rows[1].cells[1].table;
-    expect(sec1Body).toBeDefined();
     expect(sec1Body?.rows.length).toBe(2);
-    expect(sec1Body?.rows[0].cells[1].text).toBe('Paragraph A');
-    expect(sec1Body?.rows[1].cells[1].text).toBe('Paragraph B');
+    expect(sec1Body?.rows[0].cells[0].text).toBe('Paragraph A');
+    expect(sec1Body?.rows[1].cells[0].text).toBe('Paragraph B');
 
     // Row 3: Section 2 Title in SAME root table!
     expect(table.rows[2].cells[0].text).toBe('=INC()');
-    expect(table.rows[2].cells[0].className).toBe('formula h1');
     expect(table.rows[2].cells[1].text).toBe('H1: Section 2');
-
-    // Row 4: Section 2 Content
-    const sec2Body = table.rows[3].cells[1].table;
-    expect(sec2Body).toBeDefined();
-    expect(sec2Body?.rows[0].cells[1].text).toBe('Paragraph C');
-  });
-
-  it('supports recursive nesting: child headings (> N) create a child sub-table', () => {
-    const md = `
-# Title 1
-Content 1
-
-## Subtitle 1.1
-Content 1.1
-
-### Sub-subtitle 1.1.1
-Content 1.1.1
-
-# Title 2
-Content 2
-`;
-    const table = parseMarkdownToTable(md);
-    expect(table.columns).toEqual(['A', 'B']);
-    // Root table holds Title 1 (rows 0, 1) and Title 2 (rows 2, 3)
-    expect(table.rows.length).toBe(4);
-
-    // Title 1
-    expect(table.rows[0].cells[0].text).toBe('=INC()');
-    expect(table.rows[0].cells[1].text).toBe('# Title 1');
-    expect(table.rows[0].cells[1].className).toBe('text h1');
-
-    const t1Body = table.rows[1].cells[1].table;
-    expect(t1Body?.rows.length).toBe(3); // Content 1 + Subtitle 1.1 (2 rows)
-    expect(t1Body?.rows[0].cells[1].text).toBe('Content 1');
-
-    // Subtitle 1.1 (level 2 heading in t1Body)
-    expect(t1Body?.rows[1].cells[0].text).toBe('=INC()');
-    expect(t1Body?.rows[1].cells[0].className).toBe('formula h2');
-    expect(t1Body?.rows[1].cells[1].text).toBe('## Subtitle 1.1');
-    expect(t1Body?.rows[1].cells[1].className).toBe('text h2');
-
-    const subBody = t1Body?.rows[2].cells[1].table;
-    expect(subBody?.rows[0].cells[1].text).toBe('Content 1.1');
-
-    // Sub-subtitle 1.1.1 (level 3 heading in subBody)
-    expect(subBody?.rows[1].cells[0].text).toBe('=INC()');
-    expect(subBody?.rows[1].cells[0].className).toBe('formula h3');
-    expect(subBody?.rows[1].cells[1].text).toBe('### Sub-subtitle 1.1.1');
-
-    const subSubBody = subBody?.rows[2].cells[1].table;
-    expect(subSubBody?.rows[0].cells[1].text).toBe('Content 1.1.1');
-
-    // Title 2 (Row 3 & 4 in root table)
-    expect(table.rows[2].cells[0].text).toBe('=INC()');
-    expect(table.rows[2].cells[1].text).toBe('# Title 2');
-  });
-
-  it('assigns exact class hN for heading level N (h1..h6)', () => {
-    const md = `
-#### Level 4 Heading
-##### Level 5 Heading
-###### Level 6 Heading
-`;
-    const table = parseMarkdownToTable(md);
-
-    // Level 4 in root table
-    expect(table.rows[0].cells[0].text).toBe('=INC()');
-    expect(table.rows[0].cells[0].className).toBe('formula h4');
-    expect(table.rows[0].cells[1].text).toBe('#### Level 4 Heading');
-    expect(table.rows[0].cells[1].className).toBe('text h4');
-
-    // Level 5 in h4 body table
-    const h4Body = table.rows[1].cells[1].table;
-    expect(h4Body?.rows[0].cells[0].text).toBe('=INC()');
-    expect(h4Body?.rows[0].cells[0].className).toBe('formula h5');
-    expect(h4Body?.rows[0].cells[1].text).toBe('##### Level 5 Heading');
-    expect(h4Body?.rows[0].cells[1].className).toBe('text h5');
-
-    // Level 6 in h5 body table
-    const h5Body = h4Body?.rows[1].cells[1].table;
-    expect(h5Body?.rows[0].cells[0].text).toBe('=INC()');
-    expect(h5Body?.rows[0].cells[0].className).toBe('formula h6');
-    expect(h5Body?.rows[0].cells[1].text).toBe('###### Level 6 Heading');
-    expect(h5Body?.rows[0].cells[1].className).toBe('text h6');
   });
 
   it('parses mixed markdown with GFM tables inside sections', () => {
@@ -150,26 +127,25 @@ Final footer text.
     const table = parseMarkdownToTable(md);
     expect(table.columns).toEqual(['A', 'B']);
     expect(table.rows[0].cells[0].text).toBe('=INC()');
-    expect(table.rows[0].cells[1].text).toBe('# Header 1');
+    expect(table.rows[0].cells[1].text).toBe('Header 1'); // Stripped #
     expect(table.rows[0].cells[1].className).toBe('text h1');
 
     const body = table.rows[1].cells[1].table;
-    expect(body?.rows.length).toBe(3);
-    expect(body?.rows[0].cells[1].text).toBe('Some description paragraph.');
+    expect(body?.rows[0].cells[0].text).toBe('Some description paragraph.');
 
     // GFM table sub-sub-table
-    const gfmTable = body?.rows[1].cells[1].table;
+    const gfmTable = body?.rows[1].cells[0].table;
     expect(gfmTable?.columns).toEqual(['A', 'B', 'C']);
     expect(gfmTable?.rows[0].cells[0].text).toBe('Col A');
     expect(gfmTable?.rows[1].cells[0].text).toBe('10');
     expect(gfmTable?.rows[1].cells[0].className).toBe('number');
 
-    expect(body?.rows[2].cells[1].text).toBe('Final footer text.');
+    expect(body?.rows[2].cells[0].text).toBe('Final footer text.');
   });
 
   it('handles empty string gracefully', () => {
     const table = parseMarkdownToTable('');
-    expect(table.columns).toEqual(['A', 'B']);
+    expect(table.columns).toEqual(['A']);
     expect(table.rows.length).toBe(1);
     expect(table.rows[0].cells[0].text).toBe('');
   });

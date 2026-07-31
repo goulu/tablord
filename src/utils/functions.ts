@@ -132,6 +132,11 @@ export const incrementLetterSequence = (str: string): string => {
  * Returns "#ERROR" if the string contains text but no incrementable sequence.
  */
 export const incrementValue = (val: string): string => {
+  const trimmed = val.trim();
+  if (trimmed === '*' || trimmed === '-' || trimmed === '+' || trimmed === '•') {
+    return val;
+  }
+
   const regex = /\d+|[A-Za-z]+/g;
   const matches = Array.from(val.matchAll(regex));
   if (matches.length === 0) {
