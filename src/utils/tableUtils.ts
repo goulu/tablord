@@ -1368,4 +1368,22 @@ export const updateCellAlignmentInTree = (
   };
 };
 
+export const getCellsByIds = (table: Table, cellIds: Set<string>): Cell[] => {
+  const result: Cell[] = [];
+  const walk = (t: Table) => {
+    for (const row of t.rows) {
+      for (const cell of row.cells) {
+        if (cellIds.has(cell.id)) {
+          result.push(cell);
+        }
+        if (cell.table) {
+          walk(cell.table);
+        }
+      }
+    }
+  };
+  walk(table);
+  return result;
+};
+
 

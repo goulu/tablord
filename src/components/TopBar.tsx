@@ -6,6 +6,7 @@ interface TopBarProps {
   activeCellName: string | null;
   activeCellType: 'text' | 'number' | 'formula' | 'markdown' | undefined;
   activeCellStyle?: 'none' | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | undefined;
+  activeCellAlignment?: 'left' | 'center' | 'right' | 'default' | undefined;
   onHelpClick: () => void;
   onCellTypeChange: (type: 'text' | 'number' | 'formula' | 'markdown') => void;
   onCellStyleChange?: (style: 'none' | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6') => void;
@@ -21,6 +22,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   activeCellName, 
   activeCellType,
   activeCellStyle = 'none',
+  activeCellAlignment = 'default',
   onHelpClick, 
   onCellTypeChange,
   onCellStyleChange,
@@ -67,6 +69,10 @@ export const TopBar: React.FC<TopBarProps> = ({
     selectedImporterIdRef.current = null;
   };
 
+  const isLeftActive = activeCellAlignment === 'left';
+  const isCenterActive = activeCellAlignment === 'center';
+  const isRightActive = activeCellAlignment === 'right';
+
   return (
     <div 
       onClick={(e) => e.stopPropagation()} 
@@ -79,21 +85,51 @@ export const TopBar: React.FC<TopBarProps> = ({
 
         <button 
           onClick={() => onCellAlignmentChange?.('left')} 
-          style={{ marginRight: '5px', padding: '4px 6px', display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }} 
+          style={{ 
+            marginRight: '5px', 
+            padding: '4px 6px', 
+            display: 'inline-flex', 
+            alignItems: 'center', 
+            cursor: 'pointer',
+            backgroundColor: isLeftActive ? '#e2f0ff' : 'white',
+            border: isLeftActive ? '1px solid #0056b3' : '1px solid #ccc',
+            color: isLeftActive ? '#0056b3' : 'inherit',
+            borderRadius: '3px'
+          }} 
           title="Aligner à gauche"
         >
           <AlignLeft size={16} />
         </button>
         <button 
           onClick={() => onCellAlignmentChange?.('center')} 
-          style={{ marginRight: '5px', padding: '4px 6px', display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }} 
+          style={{ 
+            marginRight: '5px', 
+            padding: '4px 6px', 
+            display: 'inline-flex', 
+            alignItems: 'center', 
+            cursor: 'pointer',
+            backgroundColor: isCenterActive ? '#e2f0ff' : 'white',
+            border: isCenterActive ? '1px solid #0056b3' : '1px solid #ccc',
+            color: isCenterActive ? '#0056b3' : 'inherit',
+            borderRadius: '3px'
+          }} 
           title="Aligner au centre"
         >
           <AlignCenter size={16} />
         </button>
         <button 
           onClick={() => onCellAlignmentChange?.('right')} 
-          style={{ marginRight: '15px', padding: '4px 6px', display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }} 
+          style={{ 
+            marginRight: '15px', 
+            padding: '4px 6px', 
+            display: 'inline-flex', 
+            alignItems: 'center', 
+            cursor: 'pointer',
+            backgroundColor: isRightActive ? '#e2f0ff' : 'white',
+            border: isRightActive ? '1px solid #0056b3' : '1px solid #ccc',
+            color: isRightActive ? '#0056b3' : 'inherit',
+            borderRadius: '3px'
+          }} 
           title="Aligner à droite"
         >
           <AlignRight size={16} />

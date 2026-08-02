@@ -4,7 +4,7 @@ import {
   handleTab, handleEnter, getCellType, setCellTypeClass, getCellNameById, 
   deleteRow, deleteColumn, deleteTable, getCellStyle, setCellStyleClass, 
   getRowCellIds, getColumnCellIds, getTableCellIds,
-  getCellAlignment, setCellAlignmentClass, updateCellAlignmentInTree
+  getCellAlignment, setCellAlignmentClass, updateCellAlignmentInTree, getCellsByIds
 } from '../src/utils/tableUtils';
 
 describe('Table navigation and cell typing logic', () => {
@@ -172,6 +172,10 @@ describe('Table navigation and cell typing logic', () => {
     const updated = updateCellAlignmentInTree(table, new Set(['c1', 'c2']), 'center');
     expect(updated.rows[0].cells[0].className).toBe('text align-center');
     expect(updated.rows[0].cells[1].className).toBe('text align-center');
+
+    const fetchedCells = getCellsByIds(updated, new Set(['c1', 'c2']));
+    expect(fetchedCells.length).toBe(2);
+    expect(fetchedCells.every(c => getCellAlignment(c.className) === 'center')).toBe(true);
   });
 
 });

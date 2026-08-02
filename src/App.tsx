@@ -5,7 +5,7 @@ import {
   handleTab, handleEnter, handleCtrlTab, handleArrow, 
   getCellType, setCellTypeClass, evaluateFormula, recalculateTable, buildValueMap,
   deleteRow, deleteColumn, deleteTable, getCellNameById, insertSubTableAtCell,
-  adjustFormulasAfterStructureChange, getCellStyle, updateCellStyleInTree, updateCellAlignmentInTree, type HeadingStyle, type CellType,
+  adjustFormulasAfterStructureChange, getCellStyle, updateCellStyleInTree, updateCellAlignmentInTree, getCellAlignment, getCellsByIds, type HeadingStyle, type CellType, type CellAlignment,
   getRowCellIds, getColumnCellIds, getTableCellIds
 } from './utils/tableUtils';
 import { parseHtmlToTable } from './utils/htmlUtils';
@@ -516,6 +516,19 @@ function App() {
   const activeCellStyle = getCellStyle(activeCellProps?.className);
   const isEditingFormula = getCellType(activeCellProps?.className) === 'formula' && (activeCellProps?.text ?? '').startsWith('=');
   
+  const selectedTargetIds = selectedCellIds.size > 0 
+    ? selectedCellIds 
+    : (activeCellId ? new Set([activeCellId]) : new Set<string>());
+  const targetCells = getCellsByIds(documentTable, selectedTargetIds);
+  let activeCellAlignment: CellAlignment = 'default';
+  if (targetCells.length > 0) {
+    const firstAlign = getCellAlignment(targetCells[0].className);
+    const allSame = targetCells.every(c => getCellAlignment(c.className) === firstAlign);
+    if (allSame) {
+      activeCellAlignment = firstAlign;
+    }
+  }
+
   const activeCellName = activeCellId ? getCellNameById(documentTable, activeCellId) : null;
 
   const handleSelectMenuAction = (action: 'row' | 'column' | 'table') => {
@@ -570,6 +583,7 @@ function App() {
         activeCellName={activeCellName} 
         activeCellType={activeCellType}
         activeCellStyle={activeCellStyle}
+        activeCellAlignment={activeCellAlignment}
         onHelpClick={() => setShowHelp(true)}
         onCellTypeChange={handleCellTypeChange}
         onCellStyleChange={handleCellStyleChange}
