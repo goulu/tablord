@@ -1,4 +1,4 @@
-import type { Table, Row } from '../types/document';
+import type { Table, Row, Cell } from '../types/document';
 import { generateId } from '../types/document';
 import { makeFunctions } from './functions';
 
@@ -1209,6 +1209,107 @@ export const updateCellStyleInTree = (
       }),
     })),
   };
+};
+
+/**
+ * Recursively collect all cell IDs inside a cell (including nested sub-tables).
+ */
+export const getAllCellIdsInCell = (cell: Cell): string[] => {
+  const ids: string[] = [cell.id];
+  if (cell.table) {
+    ids.push(...getAllCellIdsInTable(cell.table));
+  }
+  return ids;
+};
+
+/**
+ * Recursively collect all cell IDs inside a table.
+ */
+export const getAllCellIdsInTable = (table: Table): string[] => {
+  const ids: string[] = [];
+  table.rows.forEach(row => {
+    row.cells.forEach(cell => {
+      ids.push(...getAllCellIdsInCell(cell));
+    });
+  });
+  return ids;
+};
+
+/**
+ * Find the row containing cellId and return all cell IDs in that row.
+ */
+export const getRowCellIds = (table: Table, cellId: string): string[] => {
+  const findInTable = (t: Table): string[] | null => {
+    for (const row of t.rows) {
+      const hasCell = row.cells.some(c => c.id === cellId);
+      if (hasCell) {
+        const ids: string[] = [];
+        row.cells.forEach(c => ids.push(...getAllCellIdsInCell(c)));
+        return ids;
+      }
+      for (const c of row.cells) {
+        if (c.table) {
+          const res = findInTable(c.table);
+          if (res) return res;
+        }
+      }
+    }
+    return null;
+  };
+
+  return findInTable(table) ?? [];
+};
+
+/**
+ * Find the containing table and column index of cellId, and return all cell IDs in that column.
+ */
+export const getColumnCellIds = (table: Table, cellId: string): string[] => {
+  const findInTable = (t: Table): string[] | null => {
+    for (const row of t.rows) {
+      const colIdx = row.cells.findIndex(c => c.id === cellId);
+      if (colIdx !== -1) {
+        const ids: string[] = [];
+        t.rows.forEach(r => {
+          if (r.cells[colIdx]) {
+            ids.push(...getAllCellIdsInCell(r.cells[colIdx]));
+          }
+        });
+        return ids;
+      }
+      for (const c of row.cells) {
+        if (c.table) {
+          const res = findInTable(c.table);
+          if (res) return res;
+        }
+      }
+    }
+    return null;
+  };
+
+  return findInTable(table) ?? [];
+};
+
+/**
+ * Find the containing table (or sub-table) of cellId and return all cell IDs in that table.
+ */
+export const getTableCellIds = (table: Table, cellId: string): string[] => {
+  const findInTable = (t: Table): string[] | null => {
+    const directChild = t.rows.some(r => r.cells.some(c => c.id === cellId));
+    if (directChild) {
+      return getAllCellIdsInTable(t);
+    }
+    for (const r of t.rows) {
+      for (const c of r.cells) {
+        if (c.table) {
+          const res = findInTable(c.table);
+          if (res) return res;
+        }
+      }
+    }
+    return null;
+  };
+
+  return findInTable(table) ?? [];
 };
 
 

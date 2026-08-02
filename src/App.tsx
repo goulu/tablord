@@ -4,8 +4,9 @@ import type { Table as TableType } from './types/document';
 import { 
   handleTab, handleEnter, handleCtrlTab, handleArrow, 
   getCellType, setCellTypeClass, evaluateFormula, recalculateTable, buildValueMap,
-  deleteRow, deleteColumn, deleteTable, getCellNameById, insertSubTableAtCell,
-  adjustFormulasAfterStructureChange, getCellStyle, updateCellStyleInTree, type HeadingStyle, type CellType
+  getCellNameById, insertSubTableAtCell,
+  adjustFormulasAfterStructureChange, getCellStyle, updateCellStyleInTree, type HeadingStyle, type CellType,
+  getRowCellIds, getColumnCellIds, getTableCellIds
 } from './utils/tableUtils';
 import { parseHtmlToTable } from './utils/htmlUtils';
 import { availableImporters } from './import';
@@ -103,6 +104,7 @@ const findActiveCell = (table: TableType, cellId: string): TableType['rows'][0][
 function App() {
   const [documentTable, setDocumentTable] = useState<TableType>(initialDocument);
   const [activeCellId, setActiveCellId] = useState<string | null>(null);
+  const [selectedCellIds, setSelectedCellIds] = useState<Set<string>>(new Set());
   const [showHelp, setShowHelp] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, cellId: string } | null>(null);
 
@@ -362,6 +364,7 @@ function App() {
 
   const handleCellClick = (cellId: string) => {
     setActiveCellId(cellId);
+    setSelectedCellIds(new Set([cellId]));
   };
 
   const handleCellContextMenu = useCallback((e: React.MouseEvent, cellId: string) => {
@@ -462,20 +465,17 @@ function App() {
   
   const activeCellName = activeCellId ? getCellNameById(documentTable, activeCellId) : null;
 
-  const handleDeleteMenuAction = (action: 'row' | 'column' | 'table') => {
+  const handleSelectMenuAction = (action: 'row' | 'column' | 'table') => {
     if (!contextMenu) return;
-    flushEditingSession();
     const { cellId } = contextMenu;
-    const oldTable = tableRef.current;
-    const oldActive = activeCellId;
-    let newTable = oldTable;
-    if (action === 'row') newTable = deleteRow(newTable, cellId);
-    if (action === 'column') newTable = deleteColumn(newTable, cellId);
-    if (action === 'table') newTable = deleteTable(newTable, cellId);
-    const adjusted = adjustFormulasAfterStructureChange(oldTable, newTable);
-    const finalTable = recalculateTable(adjusted);
-    const cmd = new DocumentCommand(`Delete ${action}`, oldTable, finalTable, oldActive, null, applyState);
-    historyManager.execute(cmd);
+    let ids: string[] = [];
+    if (action === 'row') ids = getRowCellIds(tableRef.current, cellId);
+    if (action === 'column') ids = getColumnCellIds(tableRef.current, cellId);
+    if (action === 'table') ids = getTableCellIds(tableRef.current, cellId);
+    setSelectedCellIds(new Set(ids));
+    if (ids.length > 0) {
+      setActiveCellId(ids[0]);
+    }
     setContextMenu(null);
   };
 
@@ -506,6 +506,7 @@ function App() {
       onClick={() => {
         flushEditingSession();
         setActiveCellId(null);
+        setSelectedCellIds(new Set());
         if (contextMenu) setContextMenu(null);
       }}
       onKeyDown={handleKeyDown}
@@ -530,6 +531,7 @@ function App() {
         <Table 
           table={documentTable} 
           activeCellId={activeCellId}
+          selectedCellIds={selectedCellIds}
           onCellClick={handleCellClick}
           onCellInput={(cellId, newText) => {
             setDocumentTable(prev => updateCellText(prev, cellId, newText));
@@ -537,7 +539,10 @@ function App() {
           onCellContextMenu={handleCellContextMenu}
           isEditingFormula={isEditingFormula}
           onCellRefClick={handleCellRefClick}
-          onDeselect={() => setActiveCellId(null)}
+          onDeselect={() => {
+            setActiveCellId(null);
+            setSelectedCellIds(new Set());
+          }}
         />
       </div>
       {showHelp && <HelpPopup onClose={() => setShowHelp(false)} />}
@@ -558,22 +563,22 @@ function App() {
           onClick={(e) => e.stopPropagation()}
         >
           <button 
-            onClick={() => handleDeleteMenuAction('row')}
+            onClick={() => handleSelectMenuAction('row')}
             style={{ padding: '8px 12px', border: 'none', background: 'none', textAlign: 'left', cursor: 'pointer' }}
           >
-            Supprimer la ligne
+            Sélectionner la ligne
           </button>
           <button 
-            onClick={() => handleDeleteMenuAction('column')}
+            onClick={() => handleSelectMenuAction('column')}
             style={{ padding: '8px 12px', border: 'none', background: 'none', textAlign: 'left', cursor: 'pointer' }}
           >
-            Supprimer la colonne
+            Sélectionner la colonne
           </button>
           <button 
-            onClick={() => handleDeleteMenuAction('table')}
+            onClick={() => handleSelectMenuAction('table')}
             style={{ padding: '8px 12px', border: 'none', background: 'none', textAlign: 'left', cursor: 'pointer' }}
           >
-            Supprimer le sous-tableau
+            Sélectionner la sous-table
           </button>
         </div>
       )}

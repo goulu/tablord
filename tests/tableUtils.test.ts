@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { initialDocument } from '../src/types/document';
-import { handleTab, handleEnter, getCellType, setCellTypeClass, getCellNameById, deleteRow, deleteColumn, deleteTable, getCellStyle, setCellStyleClass } from '../src/utils/tableUtils';
+import { handleTab, handleEnter, getCellType, setCellTypeClass, getCellNameById, deleteRow, deleteColumn, deleteTable, getCellStyle, setCellStyleClass, getRowCellIds, getColumnCellIds, getTableCellIds } from '../src/utils/tableUtils';
 
 describe('Table navigation and cell typing logic', () => {
 
@@ -111,6 +111,33 @@ describe('Table navigation and cell typing logic', () => {
     const delRow = deleteRow(doc, cellId);
     expect(delRow.columns).toEqual(['A']);
     expect(delRow.rows.length).toBe(1);
+  });
+
+  it('collects cell IDs for row, column, and table selection', () => {
+    const table = {
+      id: 'root',
+      columns: ['A', 'B'],
+      rows: [
+        {
+          id: 'r1',
+          cells: [
+            { id: 'c1', text: '1', className: 'text' },
+            { id: 'c2', text: '2', className: 'text' }
+          ]
+        },
+        {
+          id: 'r2',
+          cells: [
+            { id: 'c3', text: '3', className: 'text' },
+            { id: 'c4', text: '4', className: 'text' }
+          ]
+        }
+      ]
+    };
+
+    expect(getRowCellIds(table, 'c1')).toEqual(['c1', 'c2']);
+    expect(getColumnCellIds(table, 'c1')).toEqual(['c1', 'c3']);
+    expect(getTableCellIds(table, 'c1')).toEqual(['c1', 'c2', 'c3', 'c4']);
   });
 
 });

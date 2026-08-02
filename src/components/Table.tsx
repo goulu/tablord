@@ -7,6 +7,7 @@ import '../App.css';
 interface TableProps {
   table: TableType;
   activeCellId: string | null;
+  selectedCellIds?: Set<string>;
   onCellClick: (cellId: string) => void;
   onCellInput: (cellId: string, text: string) => void;
   onDeselect?: () => void;
@@ -24,6 +25,7 @@ interface TableProps {
 interface EditableCellProps {
   cell: Cell;
   isActive: boolean;
+  selectedCellIds?: Set<string>;
   isEditingFormula: boolean;
   onCellClick: (id: string) => void;
   onCellInput: (id: string, text: string) => void;
@@ -34,7 +36,7 @@ interface EditableCellProps {
   children?: React.ReactNode; // nested Table for cells with sub-tables
 }
 
-const EditableCell = memo(({ cell, isActive, isEditingFormula, onCellClick, onCellInput, onDeselect, onCellRefClick, onCellContextMenu, colSpan, children }: EditableCellProps) => {
+const EditableCell = memo(({ cell, isActive, selectedCellIds, isEditingFormula, onCellClick, onCellInput, onDeselect, onCellRefClick, onCellContextMenu, colSpan, children }: EditableCellProps) => {
   const tdRef = useRef<HTMLTableCellElement>(null);
   const originalTextRef = useRef<string>(''); // captured on activation
 
@@ -60,12 +62,14 @@ const EditableCell = memo(({ cell, isActive, isEditingFormula, onCellClick, onCe
     }
   }, [isActive, cell.id, cell.text]);
 
+  const isSelected = isActive || Boolean(selectedCellIds?.has(cell.id));
+
   return (
     <td
       ref={tdRef}
       tabIndex={0}
       colSpan={colSpan}
-      className={`${isActive ? 'selected ' : ''}${cell.className || 'text'}${!isActive && isEditingFormula ? ' formula-ref-target' : ''}`}
+      className={`${isSelected ? 'selected ' : ''}${cell.className || 'text'}${!isActive && isEditingFormula ? ' formula-ref-target' : ''}`}
       contentEditable={isActive && !cell.table}
       suppressContentEditableWarning
       data-cell-id={cell.id}
@@ -117,6 +121,12 @@ const EditableCell = memo(({ cell, isActive, isEditingFormula, onCellClick, onCe
       }}
       onContextMenu={(e) => {
         e.stopPropagation();
+        if (isActive) {
+          // Cell is currently being edited -> do NOT intercept context menu!
+          // Preserves native browser Cut/Copy/Paste context menu!
+          return;
+        }
+        e.preventDefault();
         onCellContextMenu?.(e, cell.id);
       }}
     >
@@ -130,12 +140,12 @@ EditableCell.displayName = 'EditableCell';
 // Table: recursive component
 // ──────────────────────────────────────────────
 export const Table: React.FC<TableProps> = ({
-  table, activeCellId, onCellClick, onCellInput, onDeselect,
+  table, activeCellId, selectedCellIds, onCellClick, onCellInput, onDeselect,
   isEditingFormula = false, onCellRefClick, onCellContextMenu,
   depth = 0
 }) => {
   const isInnermostSelectedTable = table.rows.some(row =>
-    row.cells.some(cell => cell.id === activeCellId)
+    row.cells.some(cell => cell.id === activeCellId || selectedCellIds?.has(cell.id))
   );
 
   return (
@@ -154,6 +164,7 @@ export const Table: React.FC<TableProps> = ({
                       key={cell.id}
                       cell={cell}
                       isActive={isActive}
+                      selectedCellIds={selectedCellIds}
                       isEditingFormula={isEditingFormula}
                       onCellClick={onCellClick}
                       onCellInput={onCellInput}
@@ -166,6 +177,7 @@ export const Table: React.FC<TableProps> = ({
                         <Table
                           table={cell.table}
                           activeCellId={activeCellId}
+                          selectedCellIds={selectedCellIds}
                           onCellClick={onCellClick}
                           onCellInput={onCellInput}
                           onDeselect={onDeselect}
