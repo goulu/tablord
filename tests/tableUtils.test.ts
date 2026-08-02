@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { initialDocument } from '../src/types/document';
-import { handleTab, handleEnter, getCellType, setCellTypeClass, getCellNameById, deleteRow, deleteColumn, deleteTable, getCellStyle, setCellStyleClass, getRowCellIds, getColumnCellIds, getTableCellIds } from '../src/utils/tableUtils';
+import { 
+  handleTab, handleEnter, getCellType, setCellTypeClass, getCellNameById, 
+  deleteRow, deleteColumn, deleteTable, getCellStyle, setCellStyleClass, 
+  getRowCellIds, getColumnCellIds, getTableCellIds,
+  getCellAlignment, setCellAlignmentClass, updateCellAlignmentInTree
+} from '../src/utils/tableUtils';
 
 describe('Table navigation and cell typing logic', () => {
 
@@ -138,6 +143,35 @@ describe('Table navigation and cell typing logic', () => {
     expect(getRowCellIds(table, 'c1')).toEqual(['c1', 'c2']);
     expect(getColumnCellIds(table, 'c1')).toEqual(['c1', 'c3']);
     expect(getTableCellIds(table, 'c1')).toEqual(['c1', 'c2', 'c3', 'c4']);
+  });
+
+  it('handles cell alignment classes correctly', () => {
+    expect(getCellAlignment('text align-center')).toBe('center');
+    expect(getCellAlignment('number align-right')).toBe('right');
+    expect(getCellAlignment('markdown align-left')).toBe('left');
+    expect(getCellAlignment('text')).toBe('default');
+
+    expect(setCellAlignmentClass('text', 'center')).toBe('text align-center');
+    expect(setCellAlignmentClass('text align-left', 'right')).toBe('text align-right');
+    expect(setCellAlignmentClass('text align-right', 'default')).toBe('text');
+
+    const table = {
+      id: 'root',
+      columns: ['A', 'B'],
+      rows: [
+        {
+          id: 'r1',
+          cells: [
+            { id: 'c1', text: '1', className: 'text' },
+            { id: 'c2', text: '2', className: 'text' }
+          ]
+        }
+      ]
+    };
+
+    const updated = updateCellAlignmentInTree(table, new Set(['c1', 'c2']), 'center');
+    expect(updated.rows[0].cells[0].className).toBe('text align-center');
+    expect(updated.rows[0].cells[1].className).toBe('text align-center');
   });
 
 });

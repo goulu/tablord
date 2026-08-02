@@ -5,7 +5,7 @@ import {
   handleTab, handleEnter, handleCtrlTab, handleArrow, 
   getCellType, setCellTypeClass, evaluateFormula, recalculateTable, buildValueMap,
   deleteRow, deleteColumn, deleteTable, getCellNameById, insertSubTableAtCell,
-  adjustFormulasAfterStructureChange, getCellStyle, updateCellStyleInTree, type HeadingStyle, type CellType,
+  adjustFormulasAfterStructureChange, getCellStyle, updateCellStyleInTree, updateCellAlignmentInTree, type HeadingStyle, type CellType,
   getRowCellIds, getColumnCellIds, getTableCellIds
 } from './utils/tableUtils';
 import { parseHtmlToTable } from './utils/htmlUtils';
@@ -497,6 +497,20 @@ function App() {
     }
   };
 
+  const handleCellAlignmentChange = (alignment: 'left' | 'center' | 'right') => {
+    const targetSet = selectedCellIds.size > 0 
+      ? selectedCellIds 
+      : (activeCellId ? new Set([activeCellId]) : new Set<string>());
+
+    if (targetSet.size > 0) {
+      flushEditingSession();
+      const oldTable = tableRef.current;
+      const newTable = updateCellAlignmentInTree(oldTable, targetSet, alignment);
+      const cmd = new DocumentCommand('Change Cell Alignment', oldTable, newTable, activeCellId, activeCellId, applyState);
+      historyManager.execute(cmd);
+    }
+  };
+
   const activeCellProps = activeCellId ? findActiveCell(documentTable, activeCellId) : null;
   const activeCellType = getCellType(activeCellProps?.className);
   const activeCellStyle = getCellStyle(activeCellProps?.className);
@@ -559,6 +573,7 @@ function App() {
         onHelpClick={() => setShowHelp(true)}
         onCellTypeChange={handleCellTypeChange}
         onCellStyleChange={handleCellStyleChange}
+        onCellAlignmentChange={handleCellAlignmentChange}
         onImportFile={handleImportFile}
         onUndo={handleUndo}
         onRedo={handleRedo}

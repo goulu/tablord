@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
 import { availableImporters } from '../import';
 
 interface TopBarProps {
@@ -8,6 +9,7 @@ interface TopBarProps {
   onHelpClick: () => void;
   onCellTypeChange: (type: 'text' | 'number' | 'formula' | 'markdown') => void;
   onCellStyleChange?: (style: 'none' | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6') => void;
+  onCellAlignmentChange?: (alignment: 'left' | 'center' | 'right') => void;
   onImportFile: (importerId: string, file: File) => void;
   onUndo?: () => void;
   onRedo?: () => void;
@@ -22,6 +24,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   onHelpClick, 
   onCellTypeChange,
   onCellStyleChange,
+  onCellAlignmentChange,
   onImportFile,
   onUndo,
   onRedo,
@@ -73,6 +76,28 @@ export const TopBar: React.FC<TopBarProps> = ({
         <button style={{ marginRight: '5px' }} title="Bold (placeholder)">B</button>
         <button style={{ marginRight: '5px' }} title="Italic (placeholder)">I</button>
         <button style={{ marginRight: '15px' }} title="Underline (placeholder)">U</button>
+
+        <button 
+          onClick={() => onCellAlignmentChange?.('left')} 
+          style={{ marginRight: '5px', padding: '4px 6px', display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }} 
+          title="Aligner à gauche"
+        >
+          <AlignLeft size={16} />
+        </button>
+        <button 
+          onClick={() => onCellAlignmentChange?.('center')} 
+          style={{ marginRight: '5px', padding: '4px 6px', display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }} 
+          title="Aligner au centre"
+        >
+          <AlignCenter size={16} />
+        </button>
+        <button 
+          onClick={() => onCellAlignmentChange?.('right')} 
+          style={{ marginRight: '15px', padding: '4px 6px', display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }} 
+          title="Aligner à droite"
+        >
+          <AlignRight size={16} />
+        </button>
 
         <button 
           onClick={onUndo} 

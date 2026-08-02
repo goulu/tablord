@@ -1312,4 +1312,60 @@ export const getTableCellIds = (table: Table, cellId: string): string[] => {
   return findInTable(table) ?? [];
 };
 
+/**
+ * Cell alignment utilities
+ */
+export type CellAlignment = 'left' | 'center' | 'right' | 'default';
+
+export const getCellAlignment = (className?: string): CellAlignment => {
+  if (!className) return 'default';
+  const classes = className.split(' ');
+  if (classes.includes('align-center')) return 'center';
+  if (classes.includes('align-right')) return 'right';
+  if (classes.includes('align-left')) return 'left';
+  return 'default';
+};
+
+export const setCellAlignmentClass = (
+  className: string,
+  alignment: CellAlignment
+): string => {
+  const classes = (className || '')
+    .split(' ')
+    .filter((c) => Boolean(c) && !c.startsWith('align-'));
+  if (alignment !== 'default') {
+    classes.push(`align-${alignment}`);
+  }
+  return classes.join(' ');
+};
+
+export const updateCellAlignmentInTree = (
+  table: Table,
+  cellIds: Set<string>,
+  alignment: CellAlignment
+): Table => {
+  return {
+    ...table,
+    rows: table.rows.map((row) => ({
+      ...row,
+      cells: row.cells.map((cell) => {
+        let updatedCell = cell;
+        if (cellIds.has(cell.id)) {
+          updatedCell = {
+            ...updatedCell,
+            className: setCellAlignmentClass(updatedCell.className || '', alignment),
+          };
+        }
+        if (cell.table) {
+          updatedCell = {
+            ...updatedCell,
+            table: updateCellAlignmentInTree(cell.table, cellIds, alignment),
+          };
+        }
+        return updatedCell;
+      }),
+    })),
+  };
+};
+
 
