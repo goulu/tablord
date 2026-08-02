@@ -73,3 +73,9 @@ td.align-center {
 td.align-right {
   text-align: right !important;
 }
+
+td.number,
+td.formula {
+  min-width: max-content;
+  white-space: nowrap;
+}

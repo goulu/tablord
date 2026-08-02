@@ -40,11 +40,18 @@ table.selected {
 
 .document td.number {
   text-align: right;
+  min-width: max-content;
+  white-space: nowrap;
 }
 
-.document td.text,
+.document td.text {
+  text-align: left;
+}
+
 .document td.formula {
   text-align: left;
+  min-width: max-content;
+  white-space: nowrap;
 }
 
 .document td.align-left {
