@@ -16,7 +16,7 @@ Tablord auto-saves your work in the browser's local storage — your document is
 
 ## User Manual
 
-### Navigation
+### Navigation & Selection
 
 | Action | Key / Input |
 |---|---|
@@ -25,21 +25,32 @@ Tablord auto-saves your work in the browser's local storage — your document is
 | Move to previous cell | `Shift+Tab` |
 | Move down (new row) | `Enter` |
 | Move between cells | `Arrow keys` |
-| Deselect | Click outside the table |
+| Selection Context Menu | Right-click inactive cell |
+| Select Row / Column / Sub-table | Context Menu → *Sélectionner la ligne / colonne / sous-table* |
+| Delete Selected Row / Column / Sub-table | `Delete` key |
+| Native Context Menu (Copy/Paste) | Right-click while editing a cell |
+| Deselect | Click outside the table / `Escape` |
 
 ---
 
-### Cell Types
+### Cell Types & Formatting
 
-Each cell has a **type** that controls its display and alignment. The type can be changed via the dropdown in the top bar when a cell is selected.
+Each cell has a **type** and optional **heading style** or **text alignment**, changeable via the top bar controls:
+
+| Property | Options | Description |
+|---|---|---|
+| **Type** | `text`, `number`, `formula`, `markdown` | Controls cell rendering, evaluation, and default alignment. |
+| **Heading Style** | Standard, `h1` … `h6` | Applies document heading styles to the cell text. |
+| **Alignment** | Left (`⇐`), Center (`⇔`), Right (`⇒`) | Adjusts cell content alignment. The active alignment button highlights when selected cells share the same alignment. |
+
+#### Cell Types Summary
 
 | Type | Alignment | Description |
 |---|---|---|
-| `text` | Left | Plain text |
-| `number` | Right | Numeric value |
-| `formula` | Right (result) / Left (editing) | Expression starting with `=` |
-
-Tablord **auto-detects** the type when you type: if the content is numeric, the cell becomes a `number`; when you start with `=` it becomes a `formula`.
+| `text` | Left | Plain text content |
+| `number` | Right | Numeric values (auto-adjusted minimum width to fit content tightly) |
+| `formula` | Right (result) / Left (editing) | JavaScript expression starting with `=` (auto-adjusted minimum width) |
+| `markdown` | Left | Rendered Markdown (headers, bold, links, lists, code, `<hr/>` horizontal rules) |
 
 ---
 
@@ -95,6 +106,25 @@ Use cell addresses directly in formulas:
 
 Press `Ctrl+Tab` inside any cell to create a **sub-table** inside it. The sub-table inherits the name of that cell (e.g. a sub-table inside `B.3` has cells named `B.3.A.1`, `B.3.B.1`, etc.).
 
+Sub-tables touch cell boundaries directly with zero padding for clean nested layouts.
+
+---
+
+### Document Import
+
+Use the **Import...** dropdown in the top bar to import external files into the current cell:
+
+- **Markdown (`.md`, `.markdown`)**: Imports markdown headers and tables as structured sub-tables with `markdown` cell formatting.
+- **Text (`.txt`)**: Imports plain text files into the cell structure.
+
+---
+
+### Undo / Redo System
+
+Full multi-step history tracking:
+- `Ctrl+Z` / `↺ Undo`: Undo structure additions, deletions, cell text edits, style, alignment, or imports.
+- `Ctrl+Y` / `Ctrl+Shift+Z` / `↻ Redo`: Redo undone actions.
+
 ---
 
 ### Keyboard Shortcuts
@@ -105,8 +135,11 @@ Press `Ctrl+Tab` inside any cell to create a **sub-table** inside it. The sub-ta
 | `Shift+Tab` | Move to previous cell |
 | `Enter` | Move to next row / create new row |
 | `Ctrl+Tab` | Create sub-table in current cell |
+| `Delete` | Delete selected row / column / sub-table |
+| `Ctrl+Z` | Undo last action |
+| `Ctrl+Y` / `Ctrl+Shift+Z` | Redo action |
 | `Arrow keys` | Navigate between cells |
-| `Escape` | Restore original cell content while editing |
+| `Escape` | Cancel / restore original cell content while editing |
 
 ---
 
