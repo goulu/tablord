@@ -4,7 +4,7 @@ import type { Table as TableType } from './types/document';
 import { 
   handleTab, handleEnter, handleCtrlTab, handleArrow, 
   getCellType, setCellTypeClass, evaluateFormula, recalculateTable, buildValueMap,
-  getCellNameById, insertSubTableAtCell,
+  deleteRow, deleteColumn, deleteTable, getCellNameById, insertSubTableAtCell,
   adjustFormulasAfterStructureChange, getCellStyle, updateCellStyleInTree, type HeadingStyle, type CellType,
   getRowCellIds, getColumnCellIds, getTableCellIds
 } from './utils/tableUtils';
@@ -105,6 +105,7 @@ function App() {
   const [documentTable, setDocumentTable] = useState<TableType>(initialDocument);
   const [activeCellId, setActiveCellId] = useState<string | null>(null);
   const [selectedCellIds, setSelectedCellIds] = useState<Set<string>>(new Set());
+  const [selectionInfo, setSelectionInfo] = useState<{ type: 'row' | 'column' | 'table' | 'cell'; targetCellId: string } | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, cellId: string } | null>(null);
 
@@ -285,7 +286,10 @@ function App() {
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [handleUndo, handleRedo]);
 
-  // Handle keystrokes (Tab, Enter, Arrows) bubbling up
+  const selectionInfoRef = useRef(selectionInfo);
+  useEffect(() => { selectionInfoRef.current = selectionInfo; }, [selectionInfo]);
+
+  // Handle keystrokes (Tab, Enter, Arrows, Delete) bubbling up
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
       const currentTable = tableRef.current;
@@ -296,6 +300,40 @@ function App() {
       }
       if (e.ctrlKey && e.key !== 'Tab') {
         return;
+      }
+
+      if (e.key === 'Delete') {
+        const currentSelection = selectionInfoRef.current;
+        if (currentSelection && ['row', 'column', 'table'].includes(currentSelection.type)) {
+          e.preventDefault();
+          flushEditingSession();
+          const oldTable = currentTable;
+          const oldActive = currentActiveCellId;
+          const targetCellId = currentSelection.targetCellId;
+          let newTable = oldTable;
+          let actionLabel = '';
+
+          if (currentSelection.type === 'row') {
+            newTable = deleteRow(oldTable, targetCellId);
+            actionLabel = 'Delete Row';
+          } else if (currentSelection.type === 'column') {
+            newTable = deleteColumn(oldTable, targetCellId);
+            actionLabel = 'Delete Column';
+          } else if (currentSelection.type === 'table') {
+            newTable = deleteTable(oldTable, targetCellId);
+            actionLabel = 'Delete Subtable';
+          }
+
+          const adjusted = adjustFormulasAfterStructureChange(oldTable, newTable);
+          const finalTable = recalculateTable(adjusted);
+          const remainingCellId = finalTable.rows[0]?.cells[0]?.id ?? null;
+          const cmd = new DocumentCommand(actionLabel, oldTable, finalTable, oldActive, remainingCellId, applyState);
+          historyManager.execute(cmd);
+
+          setSelectedCellIds(new Set());
+          setSelectionInfo(null);
+          return;
+        }
       }
 
       if (e.key === 'Tab') {
@@ -365,6 +403,7 @@ function App() {
   const handleCellClick = (cellId: string) => {
     setActiveCellId(cellId);
     setSelectedCellIds(new Set([cellId]));
+    setSelectionInfo({ type: 'cell', targetCellId: cellId });
   };
 
   const handleCellContextMenu = useCallback((e: React.MouseEvent, cellId: string) => {
@@ -473,6 +512,7 @@ function App() {
     if (action === 'column') ids = getColumnCellIds(tableRef.current, cellId);
     if (action === 'table') ids = getTableCellIds(tableRef.current, cellId);
     setSelectedCellIds(new Set(ids));
+    setSelectionInfo({ type: action, targetCellId: cellId });
     if (ids.length > 0) {
       setActiveCellId(ids[0]);
     }
@@ -507,6 +547,7 @@ function App() {
         flushEditingSession();
         setActiveCellId(null);
         setSelectedCellIds(new Set());
+        setSelectionInfo(null);
         if (contextMenu) setContextMenu(null);
       }}
       onKeyDown={handleKeyDown}
@@ -542,6 +583,7 @@ function App() {
           onDeselect={() => {
             setActiveCellId(null);
             setSelectedCellIds(new Set());
+            setSelectionInfo(null);
           }}
         />
       </div>
