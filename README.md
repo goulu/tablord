@@ -73,6 +73,36 @@ Formulas begin with `=` and support any JavaScript expression.
 | `ROW("B.3")` | Row number of a specific cell |
 | `NAME()` | Full address of the current cell (e.g. `B.3`) |
 | `NAME("B.3")` | Returns `"B.3"` |
+| `SUM()` | Sums cells above in the same column, or range `SUM("A.1", "A.5")` |
+| `INC()` | Increments numeric or alphabetical sequence from cell above or target cell |
+
+#### Title & List Auto-Numbering with `INC()`
+
+Tablord provides a unique `INC()` formula function designed to automate title, section, and list numbering across rows and sub-tables.
+
+##### How `INC()` Works
+
+- **Without arguments (`=INC()`)**: Automatically inspects the column upwards to find the nearest non-empty cell and increments its sequence.
+- **With a cell reference (`=INC("A.1")`)**: Increments the numeric or alphabetical sequence contained in cell `A.1`.
+
+##### Supported Sequences
+
+`INC()` intelligently increments the rightmost numeric or alphabetical token in a string:
+
+| Initial Cell Value | Formula in Cell Below | Result |
+|---|---|---|
+| `1` | `=INC()` | `2` |
+| `1.1` | `=INC()` | `1.2` |
+| `Section 2.A` | `=INC()` | `Section 2.B` |
+| `Chapter I` | `=INC()` | `Chapter J` |
+| `A` | `=INC()` | `B` |
+
+##### Use Case: Automatic Document Outlines & Lists
+
+When creating hierarchical document structures or importing Markdown files:
+1. Set the initial section number in cell `A.1` (e.g. `1.1`).
+2. In subsequent section cells `A.2`, `A.3`, etc., enter `=INC()`.
+3. If a row is inserted or reordered, section numbers automatically recalculate across the entire document.
 
 #### Cell References
 
