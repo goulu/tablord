@@ -1,6 +1,11 @@
-.selected {
-  outline: 2px solid blue;
+td.selected {
+  outline: 2px solid #2563eb;
   background-color: #f0f8ff;
+}
+
+table.selected {
+  outline: 1px solid #93c5fd;
+  background-color: transparent;
 }
 
 .document td {
