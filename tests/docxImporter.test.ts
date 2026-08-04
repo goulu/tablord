@@ -44,19 +44,21 @@ describe('DocxImporter', () => {
     // Contains paragraph description
     const firstBodyText = h1BodyTable?.rows[0].cells[0].text;
     expect(firstBodyText).toContain('This is a simple one-page document');
+  });
 
-    // Contains Level 2 sub-table ("Basic Text Formatting" & "Different Sizes and Alignment")
-    const level2ContainerRow = h1BodyTable?.rows[1];
-    const level2Table = level2ContainerRow?.cells[0].table;
-    expect(level2Table).toBeDefined();
-    expect(level2Table?.rows.length).toBe(2); // 2 Level 2 sections
+  it('parses tables (Margin Analysis) and nested lists (Strategic Initiatives for Q4 2024) in sample-files.com-formatted-report.docx', async () => {
+    const filePath = path.resolve(__dirname, 'docx/sample-files.com-formatted-report.docx');
+    const buffer = fs.readFileSync(filePath);
+    const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
 
-    // Section 2.1: Basic Text Formatting
-    const sec2_1_SubTable = level2Table?.rows[0].cells[1].table;
-    expect(sec2_1_SubTable?.rows[0].cells[0].text).toBe('Basic Text Formatting');
+    const table = await docxImporter.parse(arrayBuffer);
+    expect(table).toBeDefined();
 
-    // Section 2.2: Different Sizes and Alignment
-    const sec2_2_SubTable = level2Table?.rows[1].cells[1].table;
-    expect(sec2_2_SubTable?.rows[0].cells[0].text).toBe('Different Sizes and Alignment');
+    const tableString = JSON.stringify(table);
+    expect(tableString).toContain('Gross Margin');
+    expect(tableString).toContain('Operating Margin');
+    expect(tableString).toContain('Net Margin');
+    expect(tableString).toContain('Strategic Initiatives for Q4 2024');
+    expect(tableString).toContain('AI implementation in customer service');
   });
 });

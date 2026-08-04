@@ -1,4 +1,4 @@
-import type { Table, Row } from '../types/document';
+import type { Table, Row, Cell } from '../types/document';
 import { generateId } from '../types/document';
 import type { Importer } from './types';
 
@@ -10,7 +10,85 @@ export interface HeadingInfo {
 export interface ListItemInfo {
   marker: string;
   text: string;
+  indent: number;
 }
+
+const convertNumberToCol = (num: number): string => {
+  let colName = '';
+  while (num > 0) {
+    const modulo = (num - 1) % 26;
+    colName = String.fromCharCode(65 + modulo) + colName;
+    num = Math.floor((num - modulo) / 26);
+  }
+  return colName;
+};
+
+const isTableSeparator = (line: string): boolean => {
+  const trimmed = line.trim();
+  return /^\|?(\s*:?-+:?\s*\|)+\s*:?-+:?\s*\|?$/.test(trimmed);
+};
+
+const isTableRow = (line: string): boolean => {
+  const trimmed = line.trim();
+  if (!trimmed.includes('|')) return false;
+  return trimmed.startsWith('|') || trimmed.endsWith('|') || (trimmed.match(/\|/g) || []).length >= 2;
+};
+
+const parseTableRow = (line: string): string[] => {
+  let trimmed = line.trim();
+  if (trimmed.startsWith('|')) trimmed = trimmed.slice(1);
+  if (trimmed.endsWith('|')) trimmed = trimmed.slice(0, -1);
+  return trimmed.split('|').map(cell => cell.trim());
+};
+
+const parseGfmTable = (lines: string[], defaultFormat: string): Table => {
+  const rawRows: string[][] = [];
+  for (const line of lines) {
+    if (isTableSeparator(line)) continue;
+    if (isTableRow(line)) {
+      const cells = parseTableRow(line);
+      if (cells.length > 0) {
+        rawRows.push(cells);
+      }
+    }
+  }
+
+  let maxCols = 1;
+  for (const rowCells of rawRows) {
+    if (rowCells.length > maxCols) maxCols = rowCells.length;
+  }
+
+  const columns: string[] = [];
+  for (let c = 1; c <= maxCols; c++) {
+    columns.push(convertNumberToCol(c));
+  }
+
+  const rows: Row[] = rawRows.map((rowCells) => {
+    const cells: Cell[] = [];
+    for (let colIdx = 0; colIdx < maxCols; colIdx++) {
+      const text = rowCells[colIdx] ?? '';
+      let className = defaultFormat;
+      if (text !== '' && !isNaN(Number(text))) {
+        className = 'number';
+      }
+      cells.push({
+        id: generateId(),
+        text,
+        className,
+      });
+    }
+    return {
+      id: generateId(),
+      cells,
+    };
+  });
+
+  return {
+    id: generateId(),
+    columns,
+    rows,
+  };
+};
 
 export abstract class TextDocumentImporter implements Importer {
   abstract id: string;
@@ -42,25 +120,30 @@ export abstract class TextDocumentImporter implements Importer {
   }
 
   /**
-   * Examines a line and returns list item marker & text if it's a list item, or null otherwise.
+   * Examines a line and returns list item marker, text & indent level if it's a list item, or null otherwise.
    * Default implementation parses bullets (*, +, -) and ordered list markers (1., 2., 1), 2)).
    */
   parseListItem(line: string): ListItemInfo | null {
-    const trimmed = line.trim();
+    const rawTrimmed = line.trimStart();
+    if (!rawTrimmed) return null;
+    const indentSpaces = line.length - rawTrimmed.length;
+    const indent = Math.floor(indentSpaces / 2);
 
     // Unordered lists (*, +, -)
-    const bulletMatch = trimmed.match(/^(\*|\+|-)\s+(.*)$/);
+    const bulletMatch = rawTrimmed.match(/^(\*|\+|-)\s+(.*)$/);
     if (bulletMatch) {
       return {
+        indent,
         marker: bulletMatch[1],
         text: bulletMatch[2].trim(),
       };
     }
 
     // Ordered lists (1., 2., 1), 2))
-    const orderedMatch = trimmed.match(/^(\d+[\.\)])\s+(.*)$/);
+    const orderedMatch = rawTrimmed.match(/^(\d+[\.\)])\s+(.*)$/);
     if (orderedMatch) {
       return {
+        indent,
         marker: orderedMatch[1],
         text: orderedMatch[2].trim(),
       };
@@ -196,6 +279,111 @@ export abstract class TextDocumentImporter implements Importer {
   }
 
   /**
+   * Recursively parses list items (supporting nested sub-lists) into a Table.
+   */
+  protected parseNestedList(items: ListItemInfo[], minIndent: number = 0): Table {
+    const rows: Row[] = [];
+    let k = 0;
+    let inListGroup = false;
+
+    while (k < items.length) {
+      const item = items[k];
+      if (item.indent > minIndent) {
+        k++;
+        continue;
+      }
+
+      // Check if item has nested children (items with indent > minIndent)
+      let subEnd = k + 1;
+      while (subEnd < items.length && items[subEnd].indent > minIndent) {
+        subEnd++;
+      }
+
+      const colAText = inListGroup ? '=INC()' : item.marker;
+      const colAClass = colAText.startsWith('=') ? 'formula' : 'number';
+
+      if (subEnd > k + 1) {
+        // Parse nested sub-list items recursively
+        const subItems = items.slice(k + 1, subEnd);
+        const nextMinIndent = Math.min(...subItems.map(s => s.indent));
+        const nestedSubTable = this.parseNestedList(subItems, nextMinIndent);
+
+        const itemContentSubTable: Table = {
+          id: generateId(),
+          columns: ['A'],
+          rows: [
+            {
+              id: generateId(),
+              cells: [
+                {
+                  id: generateId(),
+                  text: item.text,
+                  className: this.defaultContentFormat,
+                },
+              ],
+            },
+            {
+              id: generateId(),
+              cells: [
+                {
+                  id: generateId(),
+                  text: '',
+                  className: 'text',
+                  table: nestedSubTable,
+                },
+              ],
+            },
+          ],
+        };
+
+        rows.push({
+          id: generateId(),
+          cells: [
+            {
+              id: generateId(),
+              text: colAText,
+              className: colAClass,
+            },
+            {
+              id: generateId(),
+              text: '',
+              className: 'text',
+              table: itemContentSubTable,
+            },
+          ],
+        });
+
+        k = subEnd;
+      } else {
+        rows.push({
+          id: generateId(),
+          cells: [
+            {
+              id: generateId(),
+              text: colAText,
+              className: colAClass,
+            },
+            {
+              id: generateId(),
+              text: item.text,
+              className: this.defaultContentFormat,
+            },
+          ],
+        });
+        k++;
+      }
+
+      inListGroup = true;
+    }
+
+    return {
+      id: generateId(),
+      columns: ['A', 'B'],
+      rows,
+    };
+  }
+
+  /**
    * Recursively parses content lines at parentLevel.
    * Non-heading lines and list items are added directly.
    * When sub-headings of level > parentLevel are encountered, a child level container sub-table is created.
@@ -247,41 +435,17 @@ export abstract class TextDocumentImporter implements Importer {
         if (listItem) {
           // Collect all consecutive list items in this list group
           let j = i;
-          const listRows: Row[] = [];
-          let inListGroup = false;
+          const listItemsGroup: ListItemInfo[] = [];
 
           while (j < endIndex) {
             const item = this.parseListItem(lines[j]);
             if (!item) break;
-
-            const colAText = inListGroup ? '=INC()' : item.marker;
-            const colAClass = colAText.startsWith('=') ? 'formula' : 'number';
-
-            listRows.push({
-              id: generateId(),
-              cells: [
-                {
-                  id: generateId(),
-                  text: colAText,
-                  className: colAClass,
-                },
-                {
-                  id: generateId(),
-                  text: item.text,
-                  className: this.defaultContentFormat,
-                },
-              ],
-            });
-
-            inListGroup = true;
+            listItemsGroup.push(item);
             j++;
           }
 
-          const listSubTable: Table = {
-            id: generateId(),
-            columns: ['A', 'B'],
-            rows: listRows,
-          };
+          const minIndent = Math.min(...listItemsGroup.map(item => item.indent));
+          const listSubTable = this.parseNestedList(listItemsGroup, minIndent);
 
           rows.push({
             id: generateId(),
@@ -327,10 +491,37 @@ export abstract class TextDocumentImporter implements Importer {
   }
 
   /**
-   * Helper to parse single non-heading, non-list content items into a 1-cell row (no empty cell on the left!).
+   * Helper to parse single non-heading, non-list content items into a 1-cell row.
+   * Also supports GFM markdown tables (| col1 | col2 |).
    */
-  protected parseSingleContentItem(lines: string[], i: number, _endIndex: number): { nextIndex: number; row: Row | null } {
+  protected parseSingleContentItem(lines: string[], i: number, endIndex: number): { nextIndex: number; row: Row | null } {
     const line = lines[i];
+
+    // Handle GFM Markdown tables
+    if (isTableRow(line)) {
+      const tableLines: string[] = [];
+      let j = i;
+      while (j < endIndex && (isTableRow(lines[j]) || isTableSeparator(lines[j]))) {
+        tableLines.push(lines[j]);
+        j++;
+      }
+      const subSubTable = parseGfmTable(tableLines, this.defaultContentFormat);
+      return {
+        nextIndex: j,
+        row: {
+          id: generateId(),
+          cells: [
+            {
+              id: generateId(),
+              text: '',
+              className: 'text',
+              table: subSubTable,
+            },
+          ],
+        },
+      };
+    }
+
     const trimmed = line.trim();
     if (trimmed === '') {
       return { nextIndex: i + 1, row: null };
