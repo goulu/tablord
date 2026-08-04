@@ -1,6 +1,6 @@
 import type { Table, Row, Cell } from '../types/document';
 import { generateId } from '../types/document';
-import { TextDocumentImporter, type HeadingInfo, type ListItemInfo } from './textDocumentImporter';
+import { TextDocumentImporter } from './textDocumentImporter';
 
 const convertNumberToCol = (num: number): string => {
   let colName = '';
@@ -97,50 +97,6 @@ export class MarkdownImporter extends TextDocumentImporter {
 
   override defaultContentFormat: 'text' | 'markdown' = 'markdown';
 
-  /**
-   * Parses markdown headings like "# Title", "## Title", "### Title", etc.
-   * Strips leading '#' hashes from the title text!
-   */
-  parseHeading(line: string): HeadingInfo | null {
-    const trimmed = line.trim();
-    const match = trimmed.match(/^(#{1,6})\s+(.*)$/);
-    if (match) {
-      return {
-        level: match[1].length,
-        title: match[2].trim(), // Stripped ### hashes from title text
-      };
-    }
-    return null;
-  }
-
-  /**
-   * Parses Markdown list items per Daring Fireball syntax:
-   * - Unordered: *, +, -
-   * - Ordered: 1., 2., 1), 2)
-   */
-  override parseListItem(line: string): ListItemInfo | null {
-    const trimmed = line.trim();
-
-    // Unordered lists (*, +, -)
-    const bulletMatch = trimmed.match(/^(\*|\+|-)\s+(.*)$/);
-    if (bulletMatch) {
-      return {
-        marker: bulletMatch[1],
-        text: bulletMatch[2].trim(),
-      };
-    }
-
-    // Ordered lists (1., 2., 1), 2))
-    const orderedMatch = trimmed.match(/^(\d+[\.\)])\s+(.*)$/);
-    if (orderedMatch) {
-      return {
-        marker: orderedMatch[1],
-        text: orderedMatch[2].trim(),
-      };
-    }
-
-    return null;
-  }
 
   protected override parseSingleContentItem(lines: string[], i: number, endIndex: number): { nextIndex: number; row: Row | null } {
     const line = lines[i];
@@ -200,5 +156,5 @@ export class MarkdownImporter extends TextDocumentImporter {
 export const markdownImporter = new MarkdownImporter();
 
 export const parseMarkdownToTable = (content: string): Table => {
-  return markdownImporter.parse(content);
+  return markdownImporter.parse(content) as Table;
 };

@@ -40,7 +40,7 @@ table.selected {
 
 .document td.number {
   text-align: right;
-  min-width: max-content;
+  width: 1%;
   white-space: nowrap;
 }
 
@@ -50,7 +50,7 @@ table.selected {
 
 .document td.formula {
   text-align: left;
-  min-width: max-content;
+  width: 1%;
   white-space: nowrap;
 }
 

@@ -93,7 +93,7 @@ Paragraph C
     expect(h3Sub?.rows[0].cells[0].className).toBe('markdown h3');
   });
 
-  it('parses lists with marker on first item and =INC() on subsequent items', () => {
+  it('parses lists into sub-tables with marker on first item and =INC() on subsequent items', () => {
     const md = `
 * First bullet
 * Second bullet
@@ -105,31 +105,35 @@ Paragraph C
 `;
     const table = parseMarkdownToTable(md);
 
-    // Bullet list: 3 items (2-cell rows)
-    expect(table.rows[0].cells[0].text).toBe('*');
-    expect(table.rows[0].cells[0].className).toBe('number');
-    expect(table.rows[0].cells[1].text).toBe('First bullet');
+    // Bullet list sub-table in row 0
+    const bulletListTable = table.rows[0].cells[0].table;
+    expect(bulletListTable).toBeDefined();
+    expect(bulletListTable?.rows[0].cells[0].text).toBe('*');
+    expect(bulletListTable?.rows[0].cells[0].className).toBe('number');
+    expect(bulletListTable?.rows[0].cells[1].text).toBe('First bullet');
 
-    expect(table.rows[1].cells[0].text).toBe('=INC()');
-    expect(table.rows[1].cells[0].className).toBe('formula');
-    expect(table.rows[1].cells[1].text).toBe('Second bullet');
+    expect(bulletListTable?.rows[1].cells[0].text).toBe('=INC()');
+    expect(bulletListTable?.rows[1].cells[0].className).toBe('formula');
+    expect(bulletListTable?.rows[1].cells[1].text).toBe('Second bullet');
 
-    expect(table.rows[2].cells[0].text).toBe('=INC()');
-    expect(table.rows[2].cells[0].className).toBe('formula');
-    expect(table.rows[2].cells[1].text).toBe('Third bullet');
+    expect(bulletListTable?.rows[2].cells[0].text).toBe('=INC()');
+    expect(bulletListTable?.rows[2].cells[0].className).toBe('formula');
+    expect(bulletListTable?.rows[2].cells[1].text).toBe('Third bullet');
 
-    // Ordered list: 3 items (2-cell rows)
-    expect(table.rows[3].cells[0].text).toBe('1.');
-    expect(table.rows[3].cells[0].className).toBe('number');
-    expect(table.rows[3].cells[1].text).toBe('First ordered');
+    // Ordered list sub-table in row 1
+    const orderedListTable = table.rows[1].cells[0].table;
+    expect(orderedListTable).toBeDefined();
+    expect(orderedListTable?.rows[0].cells[0].text).toBe('1.');
+    expect(orderedListTable?.rows[0].cells[0].className).toBe('number');
+    expect(orderedListTable?.rows[0].cells[1].text).toBe('First ordered');
 
-    expect(table.rows[4].cells[0].text).toBe('=INC()');
-    expect(table.rows[4].cells[0].className).toBe('formula');
-    expect(table.rows[4].cells[1].text).toBe('Second ordered');
+    expect(orderedListTable?.rows[1].cells[0].text).toBe('=INC()');
+    expect(orderedListTable?.rows[1].cells[0].className).toBe('formula');
+    expect(orderedListTable?.rows[1].cells[1].text).toBe('Second ordered');
 
-    expect(table.rows[5].cells[0].text).toBe('=INC()');
-    expect(table.rows[5].cells[0].className).toBe('formula');
-    expect(table.rows[5].cells[1].text).toBe('Third ordered');
+    expect(orderedListTable?.rows[2].cells[0].text).toBe('=INC()');
+    expect(orderedListTable?.rows[2].cells[0].className).toBe('formula');
+    expect(orderedListTable?.rows[2].cells[1].text).toBe('Third ordered');
   });
 
   it('puts non-heading, non-list paragraphs in 1-cell rows without an empty cell on the left', () => {

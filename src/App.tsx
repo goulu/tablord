@@ -555,16 +555,20 @@ function App() {
     const oldTable = tableRef.current;
     const oldActive = activeCellId;
     const reader = new FileReader();
-    reader.onload = (e) => {
-      const content = e.target?.result as string;
-      if (typeof content === 'string') {
-        const parsedSubTable = importer.parse(content);
+    reader.onload = async (e) => {
+      const content = e.target?.result;
+      if (content) {
+        const parsedSubTable = await importer.parse(content as any);
         const finalTable = recalculateTable(insertSubTableAtCell(oldTable, oldActive, parsedSubTable));
         const cmd = new DocumentCommand(`Import ${importer.name}`, oldTable, finalTable, oldActive, oldActive, applyState);
         historyManager.execute(cmd);
       }
     };
-    reader.readAsText(file);
+    if (importer.isBinary) {
+      reader.readAsArrayBuffer(file);
+    } else {
+      reader.readAsText(file);
+    }
   };
 
   return (

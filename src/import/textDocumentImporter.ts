@@ -22,21 +22,61 @@ export abstract class TextDocumentImporter implements Importer {
 
   /**
    * Examines a line and returns heading level & title if it's a heading, or null otherwise.
+   * Default implementation parses "# Title", "## Title", etc., cleaning anchor tags and bold delimiters.
    */
-  abstract parseHeading(line: string): HeadingInfo | null;
+  parseHeading(line: string): HeadingInfo | null {
+    const trimmed = line.trim();
+    const match = trimmed.match(/^(#{1,6})\s+(.*)$/);
+    if (match) {
+      let title = match[2].trim();
+      // Clean HTML anchors like <a id="..."></a>
+      title = title.replace(/<a\b[^>]*>(?:<\/a>)?/gi, '').trim();
+      // Clean leading/trailing bold markers if title is wrapped in __ or **
+      title = title.replace(/^(__|\*\*)(.*)\1$/, '$2').trim();
+      return {
+        level: match[1].length,
+        title,
+      };
+    }
+    return null;
+  }
 
   /**
    * Examines a line and returns list item marker & text if it's a list item, or null otherwise.
+   * Default implementation parses bullets (*, +, -) and ordered list markers (1., 2., 1), 2)).
    */
-  parseListItem(_line: string): ListItemInfo | null {
+  parseListItem(line: string): ListItemInfo | null {
+    const trimmed = line.trim();
+
+    // Unordered lists (*, +, -)
+    const bulletMatch = trimmed.match(/^(\*|\+|-)\s+(.*)$/);
+    if (bulletMatch) {
+      return {
+        marker: bulletMatch[1],
+        text: bulletMatch[2].trim(),
+      };
+    }
+
+    // Ordered lists (1., 2., 1), 2))
+    const orderedMatch = trimmed.match(/^(\d+[\.\)])\s+(.*)$/);
+    if (orderedMatch) {
+      return {
+        marker: orderedMatch[1],
+        text: orderedMatch[2].trim(),
+      };
+    }
+
     return null;
   }
 
   /**
    * Main entry point to parse text content into a Tablord Table.
    */
-  parse(content: string): Table {
-    const lines = content.split(/\r?\n/);
+  parse(content: string | ArrayBuffer): Table | Promise<Table> {
+    const textContent = typeof content === 'string'
+      ? content
+      : new TextDecoder().decode(content);
+    const lines = textContent.split(/\r?\n/);
     return this.parseLevelContainer(lines, 0, lines.length, 1);
   }
 
@@ -163,14 +203,12 @@ export abstract class TextDocumentImporter implements Importer {
   protected parseBlock(lines: string[], startIndex: number, endIndex: number, parentLevel: number): Table {
     const rows: Row[] = [];
     let i = startIndex;
-    let inList = false;
 
     while (i < endIndex) {
       const line = lines[i];
       const heading = this.parseHeading(line);
 
       if (heading) {
-        inList = false;
         if (heading.level > parentLevel) {
           const targetLevel = heading.level;
 
@@ -207,29 +245,58 @@ export abstract class TextDocumentImporter implements Importer {
       } else {
         const listItem = this.parseListItem(line);
         if (listItem) {
-          const colAText = inList ? '=INC()' : listItem.marker;
-          const colAClass = colAText.startsWith('=') ? 'formula' : 'number';
+          // Collect all consecutive list items in this list group
+          let j = i;
+          const listRows: Row[] = [];
+          let inListGroup = false;
+
+          while (j < endIndex) {
+            const item = this.parseListItem(lines[j]);
+            if (!item) break;
+
+            const colAText = inListGroup ? '=INC()' : item.marker;
+            const colAClass = colAText.startsWith('=') ? 'formula' : 'number';
+
+            listRows.push({
+              id: generateId(),
+              cells: [
+                {
+                  id: generateId(),
+                  text: colAText,
+                  className: colAClass,
+                },
+                {
+                  id: generateId(),
+                  text: item.text,
+                  className: this.defaultContentFormat,
+                },
+              ],
+            });
+
+            inListGroup = true;
+            j++;
+          }
+
+          const listSubTable: Table = {
+            id: generateId(),
+            columns: ['A', 'B'],
+            rows: listRows,
+          };
 
           rows.push({
             id: generateId(),
             cells: [
               {
                 id: generateId(),
-                text: colAText,
-                className: colAClass,
-              },
-              {
-                id: generateId(),
-                text: listItem.text,
-                className: this.defaultContentFormat,
+                text: '',
+                className: 'text',
+                table: listSubTable,
               },
             ],
           });
 
-          inList = true;
-          i++;
+          i = j;
         } else {
-          inList = false;
           const { nextIndex, row } = this.parseSingleContentItem(lines, i, endIndex);
           if (row) {
             rows.push(row);
