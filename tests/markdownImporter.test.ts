@@ -107,6 +107,7 @@ Paragraph C
 
     // Bullet list: 3 items (2-cell rows)
     expect(table.rows[0].cells[0].text).toBe('*');
+    expect(table.rows[0].cells[0].className).toBe('number');
     expect(table.rows[0].cells[1].text).toBe('First bullet');
 
     expect(table.rows[1].cells[0].text).toBe('=INC()');
@@ -114,16 +115,20 @@ Paragraph C
     expect(table.rows[1].cells[1].text).toBe('Second bullet');
 
     expect(table.rows[2].cells[0].text).toBe('=INC()');
+    expect(table.rows[2].cells[0].className).toBe('formula');
     expect(table.rows[2].cells[1].text).toBe('Third bullet');
 
     // Ordered list: 3 items (2-cell rows)
     expect(table.rows[3].cells[0].text).toBe('1.');
+    expect(table.rows[3].cells[0].className).toBe('number');
     expect(table.rows[3].cells[1].text).toBe('First ordered');
 
     expect(table.rows[4].cells[0].text).toBe('=INC()');
+    expect(table.rows[4].cells[0].className).toBe('formula');
     expect(table.rows[4].cells[1].text).toBe('Second ordered');
 
     expect(table.rows[5].cells[0].text).toBe('=INC()');
+    expect(table.rows[5].cells[0].className).toBe('formula');
     expect(table.rows[5].cells[1].text).toBe('Third ordered');
   });
 

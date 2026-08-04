@@ -208,7 +208,7 @@ export abstract class TextDocumentImporter implements Importer {
         const listItem = this.parseListItem(line);
         if (listItem) {
           const colAText = inList ? '=INC()' : listItem.marker;
-          const colAClass = colAText.startsWith('=') ? 'formula' : 'text';
+          const colAClass = colAText.startsWith('=') ? 'formula' : 'number';
 
           rows.push({
             id: generateId(),

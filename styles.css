@@ -74,6 +74,14 @@ td.align-right {
   text-align: right !important;
 }
 
+td.number {
+  text-align: right;
+}
+
+td.text {
+  text-align: left;
+}
+
 td.number,
 td.formula {
   min-width: max-content;
